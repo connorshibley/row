@@ -18,6 +18,8 @@ Contact: rowan.wisere@gmail.com
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a0a0b">
 <title>Water Coach</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
 <script src="topbar.js" defer></script>
 
 <!-- =============================================================
@@ -1090,6 +1092,17 @@ html, body {
 
   // BOOT
   renderAll();
+
+  // Smooth in-place refresh after a cloud (cross-device) change — avoids
+  // a full page reload. renderWater reads the in-memory `state`, so reload
+  // it from localStorage first.
+  window.__cloudResync = function () {
+    try {
+      state = loadState();
+      renderAll();
+      if (typeof renderHistory === 'function') renderHistory();
+    } catch (e) {}
+  };
 })();
 </script>
 <style>
@@ -1113,8 +1126,7 @@ html, body {
 }
 </style>
 
-<!-- Supabase cross-device sync (shares the 'health' row with the topbar water +1) -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Supabase cross-device sync (shares the 'health' row with the topbar water +1; library + auth gate loaded in <head>) -->
 <script>
   window.CLOUD_SYNC = {
     appKey: 'health',

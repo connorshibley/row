@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#050506">
 <title>Connor's Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
 <script src="topbar.js" defer></script>
 <style>
 :root {
@@ -1304,11 +1306,16 @@ body::after {
   window.addEventListener('storage', () => {
     loadToday(); loadTomorrow(); renderStreak();
   });
+
+  // Smooth in-place refresh after a cloud (cross-device) change — avoids
+  // a full page reload. Called by cloud-sync.js once it applies remote data.
+  window.__cloudResync = function () {
+    try { loadToday(); loadTomorrow(); renderStreak(); } catch (e) {}
+  };
 })();
 </script>
 
-<!-- Supabase cross-device sync -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Supabase cross-device sync (library + auth gate loaded in <head>) -->
 <script>
   window.CLOUD_SYNC = {
     appKey: 'dashboard',
