@@ -26,7 +26,11 @@
   // whether the user is signed in. The overlay/sign-out live on <html>
   // (outside <body>) so this rule never hides them.
   const PENDING = 'auth-pending';
-  document.documentElement.classList.add(PENDING);
+  // When embedded in an iframe (the water tracker inside health.html), the
+  // PARENT page owns the auth gate — don't hide the iframe body or show a
+  // second login box. We still share the Supabase client (set in start()).
+  const EMBEDDED = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
+  if (!EMBEDDED) document.documentElement.classList.add(PENDING);
 
   const style = document.createElement('style');
   style.textContent = `
@@ -162,6 +166,7 @@
     try { supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); }
     catch (e) { reveal(); return; } // lib failed to load — fail open rather than locking the user out
     window.__supa = supa;
+    if (EMBEDDED) return; // parent page owns the auth gate; just share the client
 
     supa.auth.getSession().then(function (res) {
       const session = res && res.data && res.data.session;
