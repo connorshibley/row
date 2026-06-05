@@ -465,6 +465,64 @@ main {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+/* ---- WHOOP recovery card ---- */
+.whoop-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px 16px;
+}
+.whoop-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px;
+}
+.whoop-head .sf-eyebrow { margin: 0; }
+.whoop-updated { font-size: 11px; color: var(--text-tertiary); }
+.whoop-metrics {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+}
+.whoop-metric {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 14px 12px;
+  text-align: center;
+}
+.whoop-metric-label {
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 6px;
+}
+.whoop-metric-val {
+  font-family: var(--font-mono);
+  font-size: 26px; font-weight: 600; line-height: 1;
+  color: var(--text-primary);
+}
+.whoop-metric-val .u { font-size: 13px; color: var(--text-tertiary); margin-left: 2px; }
+.whoop-metric-sub { margin-top: 6px; font-size: 11px; color: var(--text-secondary); }
+.whoop-metric-val.is-green  { color: #2FBE85; }
+.whoop-metric-val.is-yellow { color: var(--tag-stack); }
+.whoop-metric-val.is-red    { color: var(--warning); }
+.whoop-actions { display: flex; gap: 8px; margin-top: 14px; }
+.whoop-btn {
+  appearance: none; cursor: pointer;
+  background: var(--bg-input); color: var(--text-secondary);
+  border: 1px solid var(--border-strong); border-radius: 10px;
+  padding: 8px 14px; font-size: 12px; font-family: var(--font);
+}
+.whoop-btn:hover { background: var(--bg-input-focus); color: var(--text-primary); }
+.whoop-btn:disabled { opacity: 0.5; cursor: default; }
+.whoop-btn.is-primary { background: var(--accent); border-color: transparent; color: #fff; font-weight: 600; }
+.whoop-btn.is-danger:hover { color: var(--warning); border-color: var(--warning); }
+.whoop-connect { text-align: center; padding: 8px 4px 4px; }
+.whoop-connect p { color: var(--text-tertiary); font-size: 13px; margin: 0 0 14px; }
+.whoop-msg { font-size: 12px; margin-bottom: 12px; padding: 8px 12px; border-radius: 10px; }
+.whoop-msg.is-ok   { background: rgba(47,190,133,0.12); color: #2FBE85; }
+.whoop-msg.is-warn { background: var(--warning-bg); color: var(--warning); }
+.whoop-loading { color: var(--text-tertiary); font-size: 13px; text-align: center; padding: 12px; }
+@media (max-width: 420px) {
+  .whoop-metric-val { font-size: 22px; }
+  .whoop-metric { padding: 12px 8px; }
+}
 </style>
 </head>
 <body>
@@ -510,6 +568,11 @@ main {
         <button id="stackAddBtn" class="stack-add-btn">+ Add</button>
       </div>
     </div>
+  </div>
+
+  <div class="section-title">Recovery</div>
+  <div class="whoop-card" id="whoopCard">
+    <div class="whoop-loading">Loading…</div>
   </div>
 
   <section id="water" class="water-embed">
@@ -1080,6 +1143,217 @@ main {
     prefixes: ['stack:'],
   };
 </script>
+<script>
+// =============================================================
+// WHOOP recovery card
+// -------------------------------------------------------------
+// Reads the synced summary from app_state(key='whoop') — written
+// server-side by /api/whoop/sync. The browser never sees WHOOP
+// tokens; it only renders this row and calls the /api/whoop/*
+// endpoints (authorized with the Supabase session JWT).
+// =============================================================
+(function () {
+  'use strict';
+  var card = document.getElementById('whoopCard');
+  if (!card) return;
+
+  function supa() { return window.__supa || null; }
+  async function token() {
+    try {
+      var s = supa(); if (!s) return null;
+      var r = await s.auth.getSession();
+      return r && r.data && r.data.session ? r.data.session.access_token : null;
+    } catch (e) { return null; }
+  }
+  function authHeader(t) { return { Authorization: 'Bearer ' + t }; }
+
+  function recoveryClass(score) {
+    if (score == null) return '';
+    if (score >= 67) return 'is-green';
+    if (score >= 34) return 'is-yellow';
+    return 'is-red';
+  }
+  function relTime(iso) {
+    if (!iso) return '';
+    var t = new Date(iso).getTime();
+    if (!isFinite(t)) return '';
+    var mins = Math.round((Date.now() - t) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    return Math.round(hrs / 24) + 'd ago';
+  }
+  function num(v, dp) {
+    if (v == null || isNaN(v)) return '—';
+    return dp ? Number(v).toFixed(dp) : String(Math.round(v));
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  var banner = '';
+  function consumeQueryFlag() {
+    var p = new URLSearchParams(location.search);
+    var f = p.get('whoop');
+    if (!f) return;
+    if (f === 'connected') banner = '<div class="whoop-msg is-ok">WHOOP connected.</div>';
+    else if (f === 'denied') banner = '<div class="whoop-msg is-warn">Authorization was cancelled.</div>';
+    else if (f === 'error') banner = '<div class="whoop-msg is-warn">Couldn’t connect to WHOOP. Try again.</div>';
+    p.delete('whoop');
+    var qs = p.toString();
+    history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
+  }
+
+  function renderConnect() {
+    card.innerHTML = banner +
+      '<div class="whoop-connect">' +
+        '<p>Link your WHOOP to see recovery, sleep, and strain here — refreshed automatically each day.</p>' +
+        '<button class="whoop-btn is-primary" id="whoopConnectBtn">Connect WHOOP</button>' +
+      '</div>';
+    var b = document.getElementById('whoopConnectBtn');
+    if (b) b.addEventListener('click', connect);
+  }
+
+  function metric(label, valHtml, sub) {
+    return '<div class="whoop-metric">' +
+      '<div class="whoop-metric-label">' + label + '</div>' +
+      '<div class="whoop-metric-val ' + (valHtml.cls || '') + '">' + valHtml.html + '</div>' +
+      (sub ? '<div class="whoop-metric-sub">' + sub + '</div>' : '') +
+    '</div>';
+  }
+
+  function renderData(d) {
+    var rec = d.recovery || {}, slp = d.sleep || {}, str = d.strain || {};
+    var recHtml = rec.score != null
+      ? { html: num(rec.score) + '<span class="u">%</span>', cls: recoveryClass(rec.score) }
+      : { html: '—', cls: '' };
+    var recSub = [];
+    if (rec.hrv_ms != null) recSub.push('HRV ' + num(rec.hrv_ms) + 'ms');
+    if (rec.rhr != null) recSub.push('RHR ' + num(rec.rhr));
+    var slpHtml = slp.performance != null
+      ? { html: num(slp.performance) + '<span class="u">%</span>', cls: '' }
+      : { html: '—', cls: '' };
+    var slpSub = '';
+    if (slp.asleep_hours != null) {
+      slpSub = num(slp.asleep_hours, 1) + 'h';
+      if (slp.needed_hours != null) slpSub += ' / ' + num(slp.needed_hours, 1) + 'h';
+    }
+    var strHtml = str.day_strain != null
+      ? { html: num(str.day_strain, 1), cls: '' }
+      : { html: '—', cls: '' };
+
+    card.innerHTML = banner +
+      '<div class="whoop-head">' +
+        '<div class="sf-eyebrow">WHOOP</div>' +
+        '<div class="whoop-updated">' + (d.updated_at ? 'Updated ' + esc(relTime(d.updated_at)) : '') + '</div>' +
+      '</div>' +
+      '<div class="whoop-metrics">' +
+        metric('Recovery', recHtml, recSub.join(' · ')) +
+        metric('Sleep', slpHtml, slpSub) +
+        metric('Day strain', strHtml, '') +
+      '</div>' +
+      '<div class="whoop-actions">' +
+        '<button class="whoop-btn" id="whoopSyncBtn">Sync now</button>' +
+        '<button class="whoop-btn is-danger" id="whoopDisconnectBtn">Disconnect</button>' +
+      '</div>';
+    var sb = document.getElementById('whoopSyncBtn');
+    if (sb) sb.addEventListener('click', syncNow);
+    var db = document.getElementById('whoopDisconnectBtn');
+    if (db) db.addEventListener('click', disconnect);
+  }
+
+  async function loadAndRender() {
+    var s = supa();
+    if (!s) { card.innerHTML = banner + '<div class="whoop-loading">Sign in to connect WHOOP.</div>'; return; }
+    try {
+      var res = await s.from('app_state').select('data').eq('key', 'whoop').maybeSingle();
+      if (!res.error && res.data && res.data.data && Object.keys(res.data.data).length) {
+        renderData(res.data.data);
+      } else {
+        renderConnect();
+      }
+    } catch (e) {
+      renderConnect();
+    }
+  }
+
+  async function connect() {
+    var btn = document.getElementById('whoopConnectBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Opening WHOOP…'; }
+    var t = await token();
+    if (!t) { if (btn) { btn.disabled = false; btn.textContent = 'Connect WHOOP'; } return; }
+    try {
+      var r = await fetch('/api/whoop/start', { headers: authHeader(t) });
+      var j = await r.json();
+      if (r.ok && j.url) { window.location.href = j.url; return; }
+      banner = '<div class="whoop-msg is-warn">' + esc(j.error || 'Setup incomplete — check Vercel env vars.') + '</div>';
+      renderConnect();
+    } catch (e) {
+      banner = '<div class="whoop-msg is-warn">Network error starting WHOOP connect.</div>';
+      renderConnect();
+    }
+  }
+
+  async function syncNow() {
+    var btn = document.getElementById('whoopSyncBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+    var t = await token();
+    if (!t) return;
+    try {
+      var r = await fetch('/api/whoop/sync', { method: 'POST', headers: authHeader(t) });
+      var j = await r.json();
+      banner = '';
+      if (r.ok && j.summary) renderData(j.summary);
+      else { await loadAndRender(); }
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Sync now'; }
+    }
+  }
+
+  async function disconnect() {
+    var btn = document.getElementById('whoopDisconnectBtn');
+    if (!btn) return;
+    if (btn.dataset.confirm !== '1') {
+      btn.dataset.confirm = '1';
+      btn.textContent = 'Confirm?';
+      setTimeout(function () { if (btn) { btn.dataset.confirm = '0'; btn.textContent = 'Disconnect'; } }, 3000);
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Disconnecting…';
+    var t = await token();
+    if (!t) return;
+    try {
+      await fetch('/api/whoop/disconnect', { method: 'POST', headers: authHeader(t) });
+    } catch (e) {}
+    banner = '';
+    renderConnect();
+  }
+
+  // Live-update when the daily cron (or another device) refreshes the row.
+  function subscribe() {
+    var s = supa(); if (!s) return;
+    try {
+      s.channel('whoop_card')
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'app_state', filter: 'key=eq.whoop' },
+          function (payload) {
+            if (payload && payload.new && payload.new.data) { banner = ''; renderData(payload.new.data); }
+          })
+        .subscribe();
+    } catch (e) {}
+  }
+
+  // Wait for auth.js's client + session, then boot.
+  consumeQueryFlag();
+  var tries = 0;
+  (function boot() {
+    if (supa()) { loadAndRender(); subscribe(); return; }
+    if (tries++ > 100) { card.innerHTML = '<div class="whoop-loading">WHOOP unavailable (offline).</div>'; return; }
+    setTimeout(boot, 100);
+  })();
+})();
+</script>
+
 <script src="cloud-sync.js"></script>
 
 </body>
