@@ -516,6 +516,36 @@ main {
     <div class="section-title">Water Tracker</div>
     <iframe src="po-water.html" class="water-iframe" loading="lazy" title="Water Tracker"></iframe>
   </section>
+  <script>
+  // Auto-fit the embedded water tracker to its content height (same-origin),
+  // so it never gets cut off or leaves a gap. The CSS height is the fallback
+  // until this runs. The >1px guard prevents any resize feedback loop.
+  (function () {
+    var iframe = document.querySelector('iframe.water-iframe');
+    if (!iframe) return;
+    function fit() {
+      try {
+        var doc = iframe.contentDocument;
+        if (!doc || !doc.body) return;
+        var h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
+        if (h > 0 && Math.abs(h - iframe.clientHeight) > 1) iframe.style.height = h + 'px';
+      } catch (e) {}
+    }
+    function watch() {
+      fit();
+      try {
+        var doc = iframe.contentDocument;
+        if (doc && doc.body && 'ResizeObserver' in window) {
+          new ResizeObserver(fit).observe(doc.body);
+        }
+      } catch (e) {}
+      setTimeout(fit, 300);   // re-measure after fonts/layout settle
+      setTimeout(fit, 1200);
+    }
+    iframe.addEventListener('load', watch);
+    try { if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') watch(); } catch (e) {}
+  })();
+  </script>
 
   <div class="attribution">// editable template · all data stays in your browser</div>
 </main>
