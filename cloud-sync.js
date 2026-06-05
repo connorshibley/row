@@ -53,6 +53,17 @@
   let suppressSync = false;
   let pendingRemote = null;
   let lastSyncedJson = null; // ignore realtime echoes of our own pushes
+  let userId = null;         // owner of this device's rows (auth.uid())
+  let accessToken = null;    // current session token (for the unload keepalive push)
+
+  // Re-render after a remote change. Prefer the page's in-place resync
+  // hook; fall back to a full reload if the page didn't provide one.
+  function refreshUI() {
+    if (typeof window.__cloudResync === 'function') {
+      try { window.__cloudResync(); return; } catch (e) {}
+    }
+    try { window.location.reload(); } catch (e) {}
+  }
 
   // Wrap setItem/removeItem so a sync error can NEVER block the real
   // write. The underlying call always runs; sync scheduling is in a
@@ -134,16 +145,14 @@
   // user is mid-edit — in which case stash and apply once they're done.
   function maybeApplyRemote(remote) {
     if (isUserEditing()) { pendingRemote = remote; return; }
-    if (applyRemoteState(remote)) {
-      try { window.location.reload(); } catch (e) {}
-    }
+    if (applyRemoteState(remote)) refreshUI();
   }
 
   function applyPendingIfReady() {
     if (pendingRemote && !isUserEditing()) {
       const r = pendingRemote;
       pendingRemote = null;
-      if (applyRemoteState(r)) { try { window.location.reload(); } catch (e) {} }
+      if (applyRemoteState(r)) refreshUI();
     }
   }
   document.addEventListener('focusout', () => setTimeout(applyPendingIfReady, 0));
@@ -152,7 +161,7 @@
   });
 
   async function pushNow() {
-    if (!supa) return;
+    if (!supa || !userId) return;
     const state = collectState();
     const json = JSON.stringify(state);
     if (json === lastSyncedJson) return;
@@ -160,8 +169,8 @@
       const { error } = await supa
         .from('app_state')
         .upsert(
-          { key: APP_KEY, data: state, updated_at: new Date().toISOString() },
-          { onConflict: 'key' }
+          { user_id: userId, key: APP_KEY, data: state, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id,key' }
         );
       if (!error) lastSyncedJson = json;
     } catch (_) {}
@@ -176,19 +185,20 @@
   // Backup push on unload via fetch keepalive so a fast refresh doesn't
   // lose the latest change before the debounced push fires.
   function flushPushOnUnload() {
+    if (!userId || !accessToken) return;
     const state = collectState();
     const json = JSON.stringify(state);
     if (json === lastSyncedJson) return;
     try {
-      fetch(SUPABASE_URL + '/rest/v1/app_state?on_conflict=key', {
+      fetch(SUPABASE_URL + '/rest/v1/app_state?on_conflict=user_id,key', {
         method: 'POST',
         headers: {
           'apikey': SUPABASE_KEY,
-          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Authorization': 'Bearer ' + accessToken,
           'Content-Type': 'application/json',
           'Prefer': 'resolution=merge-duplicates',
         },
-        body: JSON.stringify({ key: APP_KEY, data: state, updated_at: new Date().toISOString() }),
+        body: JSON.stringify({ user_id: userId, key: APP_KEY, data: state, updated_at: new Date().toISOString() }),
         keepalive: true,
       }).catch(() => {});
       lastSyncedJson = json;
@@ -199,7 +209,20 @@
 
   // Initial sync: connect, pull current state, subscribe to realtime.
   (async function init() {
-    supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // Reuse auth.js's client so we share its session; fall back to our own.
+    supa = window.__supa || window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Require a signed-in user — auth.js shows the login gate otherwise.
+    let session = null;
+    try { session = (await supa.auth.getSession()).data.session; } catch (e) {}
+    if (!session) return;
+    userId = session.user.id;
+    accessToken = session.access_token;
+    try { supa.realtime.setAuth(accessToken); } catch (e) {}
+    supa.auth.onAuthStateChange(function (_e, s) {
+      if (s) { accessToken = s.access_token; userId = s.user.id; }
+    });
+
     try {
       const { data, error } = await supa
         .from('app_state').select('data').eq('key', APP_KEY).maybeSingle();

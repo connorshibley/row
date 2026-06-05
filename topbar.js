@@ -330,16 +330,20 @@ body.topbar-modal-open {
     if (TOPBAR_SUPABASE_URL.indexOf('PASTE-') === 0) return;
 
     try {
-      const supa = window.supabase.createClient(TOPBAR_SUPABASE_URL, TOPBAR_SUPABASE_KEY);
+      // Reuse auth.js's signed-in client; bail if not signed in.
+      const supa = window.__supa || window.supabase.createClient(TOPBAR_SUPABASE_URL, TOPBAR_SUPABASE_KEY);
+      const session = (await supa.auth.getSession()).data.session;
+      if (!session) return;
+      const userId = session.user.id;
       const { data } = await supa
         .from('app_state').select('data').eq('key', 'health').maybeSingle();
       const current = (data && data.data) || {};
       const merged = Object.assign({}, current, { po_water_v1: localWater });
       await supa.from('app_state').upsert(
-        { key: 'health', data: merged, updated_at: new Date().toISOString() },
-        { onConflict: 'key' }
+        { user_id: userId, key: 'health', data: merged, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,key' }
       );
-    } catch (e) { /* offline — local change will sync next time user visits health */ }
+    } catch (e) { /* offline or signed out — local change will sync next visit */ }
   }
 
   function addWater() {
