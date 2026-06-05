@@ -2950,6 +2950,74 @@ img, video, canvas, svg { max-width: 100%; }
   // ============================================================
   // PROGRESS PHOTOS
   // ============================================================
+  // Photos are persisted in two places:
+  //   • localStorage `po_coach_photos`  → array of { id, dateKey, weight,
+  //     path?, dataUrl? }. `dataUrl` is only present for in-flight uploads
+  //     and legacy entries from before cloud storage existed; once uploaded,
+  //     entries become path-only.
+  //   • Supabase Storage bucket `progress-photos`, file `{user_id}/{id}.jpg`.
+  //     Display goes through short-lived signed URLs (1h), cached per path.
+  const PHOTO_BUCKET = 'progress-photos';
+  const photoUrlCache = new Map();          // path -> { url, expires }
+  const SIGNED_URL_TTL_SEC = 3600;
+  const SIGNED_URL_RENEW_MS = 60_000;       // renew when <1m left
+
+  function _supaSafe() { try { return pcSupa; } catch { return null; } }
+  function _uidSafe()  { try { return pcUserId; } catch { return null; } }
+
+  function dataUrlToBlob(dataUrl) {
+    const m = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/);
+    if (!m) return null;
+    const bin = atob(m[2]);
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return new Blob([buf], { type: m[1] });
+  }
+
+  async function uploadPhotoToStorage(blob, photoId) {
+    const supa = _supaSafe(); const uid = _uidSafe();
+    if (!supa || !uid || !blob) return null;
+    const path = uid + '/' + photoId + '.jpg';
+    try {
+      const { error } = await supa.storage.from(PHOTO_BUCKET).upload(path, blob, {
+        contentType: 'image/jpeg', upsert: true,
+      });
+      if (error) return null;
+      return path;
+    } catch { return null; }
+  }
+
+  async function resolveSignedUrl(path) {
+    if (!path) return null;
+    const cached = photoUrlCache.get(path);
+    const now = Date.now();
+    if (cached && cached.expires - now > SIGNED_URL_RENEW_MS) return cached.url;
+    const supa = _supaSafe();
+    if (!supa) return null;
+    try {
+      const { data, error } = await supa.storage.from(PHOTO_BUCKET)
+        .createSignedUrl(path, SIGNED_URL_TTL_SEC);
+      if (error || !data) return null;
+      photoUrlCache.set(path, { url: data.signedUrl, expires: now + SIGNED_URL_TTL_SEC * 1000 });
+      return data.signedUrl;
+    } catch { return null; }
+  }
+
+  // Set <img> src from a photo entry — instant if dataUrl present, else
+  // async via signed URL. `guard` returns true if the assignment is still
+  // wanted by the time the URL resolves (e.g. user hasn't closed the viewer).
+  function setImgFromPhoto(img, p, guard) {
+    if (!img || !p) return;
+    if (p.dataUrl) { img.src = p.dataUrl; return; }
+    img.removeAttribute('src');
+    if (!p.path) return;
+    resolveSignedUrl(p.path).then(url => {
+      if (!url) return;
+      if (guard && !guard()) return;
+      img.src = url;
+    });
+  }
+
   let photos = [];
   try {
     const raw = localStorage.getItem(PHOTO_KEY);
@@ -3006,7 +3074,7 @@ img, video, canvas, svg { max-width: 100%; }
     } else {
       grid.innerHTML = photos.map(p =>
         '<button class="wt-photo-card" data-id="' + p.id + '" type="button">' +
-          '<img src="' + p.dataUrl + '" alt="">' +
+          '<img alt="">' +
           '<div class="wt-photo-overlay"></div>' +
           '<div class="wt-photo-meta">' +
             '<span class="wt-photo-date">' + photoFmtDate(p.dateKey) + '</span>' +
@@ -3015,7 +3083,11 @@ img, video, canvas, svg { max-width: 100%; }
         '</button>'
       ).join('');
       grid.querySelectorAll('.wt-photo-card').forEach(card => {
-        card.addEventListener('click', () => openPhoto(card.dataset.id));
+        const id = card.dataset.id;
+        const p = photos.find(x => x.id === id);
+        const img = card.querySelector('img');
+        setImgFromPhoto(img, p, () => photos.some(x => x.id === id));
+        card.addEventListener('click', () => openPhoto(id));
       });
     }
     // Update count on the link
@@ -3029,17 +3101,13 @@ img, video, canvas, svg { max-width: 100%; }
     const id = 'p' + Date.now() + '_' + Math.floor(Math.random() * 999);
     const entry = {
       id,
-      dataUrl: compressed,
+      dataUrl: compressed,            // local preview; dropped once uploaded
       dateKey: wtDateKey(new Date()),
       weight: photoCurrentWeight()
     };
     photos.unshift(entry);
     if (!photosSave()) {
-      // Storage was full even after compression — try once more at lower
-      // quality before giving up.
-      try {
-        entry.dataUrl = await compressPhotoDataUrl(dataUrl, 800, 0.6);
-      } catch {}
+      try { entry.dataUrl = await compressPhotoDataUrl(dataUrl, 800, 0.6); } catch {}
       if (!photosSave()) {
         photos.shift();
         alert('Phone storage is full — delete some older progress photos before adding a new one.');
@@ -3047,6 +3115,28 @@ img, video, canvas, svg { max-width: 100%; }
       }
     }
     photosRender();
+
+    // Background upload to Supabase Storage. On success: store the path,
+    // drop the local dataUrl, persist, re-render, and trigger a sync push
+    // so other devices see it.
+    (async () => {
+      const blob = dataUrlToBlob(entry.dataUrl);
+      if (!blob) return;
+      const path = await uploadPhotoToStorage(blob, id);
+      if (!path) return;
+      const cur = photos.find(x => x.id === id);
+      if (!cur) {
+        // User deleted before upload finished — clean up the orphaned object.
+        const supa = _supaSafe();
+        if (supa) { try { supa.storage.from(PHOTO_BUCKET).remove([path]); } catch {} }
+        return;
+      }
+      cur.path = path;
+      delete cur.dataUrl;
+      photosSave();
+      photosRender();
+      try { pcSchedulePush(); } catch {}
+    })();
   }
   function fileToPhoto(file) {
     const r = new FileReader();
@@ -3131,7 +3221,7 @@ img, video, canvas, svg { max-width: 100%; }
     const p = photos.find(x => x.id === id);
     if (!p) return;
     activePhotoId = id;
-    $('wtViewerImg').src = p.dataUrl;
+    setImgFromPhoto($('wtViewerImg'), p, () => activePhotoId === id);
     $('wtViewerDate').textContent = photoFmtDate(p.dateKey).toUpperCase();
     $('wtViewerWeight').textContent = p.weight || '—';
     $('wtViewer').dataset.mode = 'single';
@@ -3181,8 +3271,8 @@ img, video, canvas, svg { max-width: 100%; }
     if (!A || !B) return;
     activePhotoId = activeId;
     comparePhotoId = otherId;
-    $('wtCmpImgA').src = A.dataUrl;
-    $('wtCmpImgB').src = B.dataUrl;
+    setImgFromPhoto($('wtCmpImgA'), A, () => activePhotoId === activeId);
+    setImgFromPhoto($('wtCmpImgB'), B, () => comparePhotoId === otherId);
     $('wtCmpMetaA').textContent = photoFmtDate(A.dateKey) + ' · ' + (A.weight || '—');
     $('wtCmpMetaB').textContent = photoFmtDate(B.dateKey) + ' · ' + (B.weight || '—');
     // Headline — date arrow + weight delta
@@ -3228,10 +3318,17 @@ img, video, canvas, svg { max-width: 100%; }
       }, 3000);
       return;
     }
+    const removed = photos.find(p => p.id === activePhotoId);
     photos = photos.filter(p => p.id !== activePhotoId);
     photosSave();
     photosRender();
     closePhoto();
+    // Fire-and-forget cleanup of the stored object (and signed-URL cache).
+    if (removed && removed.path) {
+      photoUrlCache.delete(removed.path);
+      const supa = _supaSafe();
+      if (supa) { try { supa.storage.from(PHOTO_BUCKET).remove([removed.path]); } catch {} }
+    }
   }
 
   $('wtViewerClose').addEventListener('click', closePhoto);
@@ -3317,7 +3414,18 @@ img, video, canvas, svg { max-width: 100%; }
     for (const k of PC_SYNCED_KEYS) {
       const v = localStorage.getItem(k);
       if (v == null) continue;
-      try { out[k] = JSON.parse(v); } catch {}
+      try {
+        let parsed = JSON.parse(v);
+        if (k === PHOTO_KEY && Array.isArray(parsed)) {
+          // Sync only uploaded entries (have a storage `path`). dataUrls
+          // stay local — they'd blow the 8MB jsonb practical limit and we
+          // share photos via Storage now.
+          parsed = parsed
+            .filter(p => p && p.path)
+            .map(p => ({ id: p.id, path: p.path, dateKey: p.dateKey, weight: p.weight }));
+        }
+        out[k] = parsed;
+      } catch {}
     }
     return out;
   }
@@ -3352,6 +3460,24 @@ img, video, canvas, svg { max-width: 100%; }
     let changed = false;
     try {
       for (const k of PC_SYNCED_KEYS) {
+        if (k === PHOTO_KEY) {
+          // Merge: remote (path-only) is authoritative for any synced
+          // entry. Local entries WITHOUT a path are uploads still in
+          // flight — preserve them. Local entries WITH a path that are
+          // missing from remote were deleted elsewhere — drop them.
+          const remoteArr = Array.isArray(remote[k]) ? remote[k] : [];
+          const localRaw = localStorage.getItem(k);
+          let localArr = [];
+          try { localArr = localRaw ? JSON.parse(localRaw) : []; } catch {}
+          const remoteIds = new Set(remoteArr.map(p => p && p.id).filter(Boolean));
+          const localOnly = localArr.filter(p => p && p.id && !p.path && !remoteIds.has(p.id));
+          const merged = [...localOnly, ...remoteArr];
+          const incoming = JSON.stringify(merged);
+          if (localRaw !== incoming) {
+            try { _pcOrigSet(k, incoming); changed = true; } catch {}
+          }
+          continue;
+        }
         if (k in remote) {
           const incoming = JSON.stringify(remote[k]);
           const local = localStorage.getItem(k);
@@ -3444,6 +3570,10 @@ img, video, canvas, svg { max-width: 100%; }
     pcSupa.auth.onAuthStateChange(function (_e, s) {
       if (s) { pcAccessToken = s.access_token; pcUserId = s.user.id; }
     });
+
+    // Now that pcSupa exists, re-render photos so any path-only entries
+    // (rendered with empty src during boot, before init ran) get signed URLs.
+    try { photosRender(); } catch {}
 
     try {
       const { data, error } = await pcSupa
