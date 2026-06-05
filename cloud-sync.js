@@ -29,7 +29,7 @@
   // this is a personal dashboard with no login; row access is governed
   // by permissive RLS for the anon role.
   const SUPABASE_URL = 'https://ygeeeplqpudlodoquwly.supabase.co';
-  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnZWVlcGxxcHVkbG9kb3F1d2x5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjQxODEsImV4cCI6MjA5NjI0MDE4MX0.wEzKsj5PFjQcioOkWJnkkkARqXdaSzWjgn4OkV2fy20';
+  const SUPABASE_KEY = 'sb_publishable_ldoSboZs6XCL7fOBbVA0-g_ZzLk2O4L';
 
   const cfg = window.CLOUD_SYNC;
   if (!cfg || !cfg.appKey) return;                 // page didn't opt in

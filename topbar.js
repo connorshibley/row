@@ -15,7 +15,7 @@
   // For your audience's standalone, replace these with placeholders
   // and have them paste their own values, just like the other pages.
   const TOPBAR_SUPABASE_URL = 'https://ygeeeplqpudlodoquwly.supabase.co';
-  const TOPBAR_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnZWVlcGxxcHVkbG9kb3F1d2x5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjQxODEsImV4cCI6MjA5NjI0MDE4MX0.wEzKsj5PFjQcioOkWJnkkkARqXdaSzWjgn4OkV2fy20';
+  const TOPBAR_SUPABASE_KEY = 'sb_publishable_ldoSboZs6XCL7fOBbVA0-g_ZzLk2O4L';
 
   // -------- CSS --------
   const css = `
