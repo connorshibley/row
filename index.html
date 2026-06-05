@@ -1306,5 +1306,16 @@ body::after {
   });
 })();
 </script>
+
+<!-- Supabase cross-device sync -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  window.CLOUD_SYNC = {
+    appKey: 'dashboard',
+    keys: ['goal_streak_v1'],
+    prefixes: ['goals:'],
+  };
+</script>
+<script src="cloud-sync.js"></script>
 </body>
 </html>

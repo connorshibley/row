@@ -3376,5 +3376,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 })();
 </script>
 
+<!-- Supabase cross-device sync -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  window.CLOUD_SYNC = {
+    appKey: 'finance',
+    keys: ['finance_active_tab', 'nw_currency', 'subs', 'wishlist', 'incoming_orders'],
+    prefixes: ['nw:'],
+  };
+</script>
+<script src="cloud-sync.js"></script>
+
 </body>
 </html>

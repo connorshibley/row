@@ -1014,5 +1014,16 @@ main {
 })();
 </script>
 
+<!-- Supabase cross-device sync -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  window.CLOUD_SYNC = {
+    appKey: 'health-stack',
+    keys: [],
+    prefixes: ['stack:'],
+  };
+</script>
+<script src="cloud-sync.js"></script>
+
 </body>
 </html>
