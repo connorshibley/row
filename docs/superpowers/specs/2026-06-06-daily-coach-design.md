@@ -34,8 +34,9 @@ coaching trends, streaming, multi-turn chat. One structured call per day.
   `{ recovery:{score,hrv_ms,rhr,sleep_perf,day_strain}, events:[{title,start,allDay}],
      workout:{dayName, week, lifts:[{name,group,sets,reps,tempo}] | null} }`.
 - **Claude call:** `POST https://api.anthropic.com/v1/messages`, headers `x-api-key`,
-  `anthropic-version: 2023-06-01`, JSON body with a **fast/cheap model** (exact current
-  model id resolved at build via the `claude-api` skill), a cached **system prompt**
+  `anthropic-version: 2023-06-01`, JSON body with the model
+  **`claude-haiku-4-5-20251001`** (Haiku 4.5 — verified available + working on this
+  account's key), a cached **system prompt**
   (coaching persona + the required output JSON schema + "respond with JSON only"), and a
   user message containing the context. `max_tokens` ~700. Use prompt caching
   (`cache_control`) on the system block.
