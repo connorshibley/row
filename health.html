@@ -556,6 +556,28 @@ main {
     .wh-disconnect-link { display:block; margin:16px auto 0; padding:6px 14px; background:transparent; border:none; color:var(--text-tertiary); font-family:inherit; font-size:11px; text-align:center; cursor:pointer; letter-spacing:0.04em; }
     .wh-disconnect-link:hover { color:var(--text-secondary); text-decoration:underline; }
     .wh-err { background:rgba(255,107,107,0.08); border:1px solid rgba(255,107,107,0.28); color:#FF8A8A; padding:10px 12px; border-radius:10px; font-size:11.5px; font-family:var(--font-mono); margin-bottom:14px; }
+    /* WHOOP+ additions */
+    .wh-gear { width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); color:var(--text-secondary); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .wh-gear:hover { background:rgba(255,255,255,0.10); color:var(--text-primary); }
+    .wh-settings { display:none; gap:12px; margin-bottom:16px; padding:14px; background:rgba(255,255,255,0.025); border:1px solid var(--border-soft); border-radius:12px; flex-wrap:wrap; }
+    .wh-settings.open { display:flex; }
+    .wh-settings label { font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-tertiary); font-weight:700; display:block; margin-bottom:5px; }
+    .wh-settings input { background:var(--bg-input,rgba(0,0,0,0.28)); border:1px solid rgba(255,255,255,0.10); border-radius:8px; color:var(--text-primary); font:inherit; font-size:13px; padding:7px 9px; width:120px; }
+    .wh-bedtime { margin:0 auto 22px; text-align:center; font-size:13.5px; color:var(--text-secondary); }
+    .wh-bedtime b { color:var(--text-primary); font-weight:700; }
+    .wh-fitage { margin-top:12px; text-align:center; padding:14px; background:rgba(255,255,255,0.025); border:1px solid var(--border-soft); border-radius:12px; }
+    .wh-fitage-num { font-size:30px; font-weight:700; color:var(--text-primary); line-height:1; font-variant-numeric:tabular-nums; }
+    .wh-fitage-cap { font-size:10px; color:var(--text-tertiary); margin-top:6px; letter-spacing:0.04em; }
+    .wh-trends { margin-top:18px; padding-top:18px; border-top:1px solid var(--border-soft); }
+    .wh-trends-eye { font-size:10px; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-tertiary); margin-bottom:10px; display:block; }
+    .wh-spark-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+    .wh-spark { background:rgba(255,255,255,0.025); border:1px solid var(--border-soft); border-radius:12px; padding:10px 12px; }
+    .wh-spark-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
+    .wh-spark-label { font-size:10px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.12em; font-weight:700; }
+    .wh-spark-val { font-size:13px; font-weight:700; color:var(--text-primary); font-variant-numeric:tabular-nums; }
+    .wh-spark-val .d-up { color:#6BE3A4; } .wh-spark-val .d-dn { color:#FF8A8A; }
+    .wh-spark svg { display:block; width:100%; height:28px; }
+    .wh-collecting { font-size:11px; color:var(--text-tertiary); }
 </style>
 </head>
 <body>
@@ -578,9 +600,14 @@ main {
           <div class="wh-head-right">
             <span id="whUpdated" class="wh-updated">—</span>
             <button id="whRefresh" class="wh-refresh" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15A9 9 0 1 1 5.64 5.64L23 10"/></svg></button>
+            <button id="whGear" class="wh-gear" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
           </div>
         </div>
         <div id="whErr" class="wh-err" style="display:none"></div>
+        <div id="whSettings" class="wh-settings">
+          <div><label>Wake time</label><input id="whWake" type="time" /></div>
+          <div><label>Age</label><input id="whAge" type="number" min="10" max="100" placeholder="e.g. 22" /></div>
+        </div>
         <div class="wh-ring-wrap">
           <svg class="wh-ring" viewBox="0 0 220 220" aria-hidden="true">
             <circle class="wh-ring-track" cx="110" cy="110" r="96"/>
@@ -592,6 +619,7 @@ main {
             <div id="whRecLabel" class="wh-ring-label">—</div>
           </div>
         </div>
+        <div id="whBedtime" class="wh-bedtime" style="display:none"></div>
         <div id="whStages" class="wh-stages" style="display:none">
           <div class="wh-stages-head"><span class="wh-stages-eye">Sleep stages</span><span class="wh-stages-meta" id="whStagesMeta">—</span></div>
           <div class="wh-stages-bar">
@@ -618,11 +646,24 @@ main {
           <div class="wh-bio-item"><span class="wh-zone" id="whZoneSpo2"></span><span class="wh-bio-label">Blood O₂</span><span class="wh-bio-val" id="whSpo2">—</span></div>
           <div class="wh-bio-item"><span class="wh-zone" id="whZoneResp"></span><span class="wh-bio-label">Resp rate</span><span class="wh-bio-val" id="whResp">—</span></div>
         </div>
+        <div id="whSleepDetail" class="wh-bio" style="display:none">
+          <div class="wh-bio-item"><span class="wh-bio-label">Efficiency</span><span class="wh-bio-val" id="whEff">—</span></div>
+          <div class="wh-bio-item"><span class="wh-bio-label">Consistency</span><span class="wh-bio-val" id="whCons">—</span></div>
+          <div class="wh-bio-item"><span class="wh-bio-label">Sleep debt</span><span class="wh-bio-val" id="whDebt">—</span></div>
+        </div>
+        <div id="whFitAge" class="wh-fitage" style="display:none">
+          <div class="wh-fitage-num" id="whFitAgeNum">—</div>
+          <div class="wh-fitage-cap">estimated fitness age · our estimate, not a WHOOP metric</div>
+        </div>
         <div class="wh-legend">
           <span class="wh-leg-item"><span class="wh-zone z-good"></span>Good</span>
           <span class="wh-leg-item"><span class="wh-zone z-norm"></span>Normal</span>
           <span class="wh-leg-item"><span class="wh-zone z-warn"></span>Watch</span>
           <span class="wh-leg-item"><span class="wh-zone z-bad"></span>High / Low</span>
+        </div>
+        <div id="whTrends" class="wh-trends" style="display:none">
+          <span class="wh-trends-eye">Trends · last 30 days</span>
+          <div id="whSparkGrid" class="wh-spark-grid"></div>
         </div>
         <div id="whVerdict" class="wh-verdict" style="display:none">
           <div class="wh-verdict-head"><span class="wh-verdict-eye">Today's call</span><span id="whVerdictBadge" class="wh-verdict-badge"></span></div>
@@ -1240,7 +1281,7 @@ main {
 <script>
   window.CLOUD_SYNC = {
     appKey: 'health-stack',
-    keys: [],
+    keys: ['whoop_wake_time', 'whoop_age'],
     prefixes: ['stack:'],
   };
 </script>
@@ -1271,6 +1312,101 @@ main {
   }
   function authHeader(t) { return { Authorization: 'Bearer ' + t }; }
   function showErr(m) { var e = $('whErr'); if (!e) return; e.textContent = m || ''; e.style.display = m ? 'block' : 'none'; }
+
+  function getWake() { return localStorage.getItem('whoop_wake_time') || '07:00'; }
+  function getAge() { var a = parseInt(localStorage.getItem('whoop_age'), 10); return isFinite(a) && a > 0 ? a : null; }
+  function fmtClockMin(mins) {
+    mins = ((Math.round(mins) % 1440) + 1440) % 1440;
+    var h = Math.floor(mins / 60), m = mins % 60, ap = h < 12 ? 'AM' : 'PM', hh = h % 12 || 12;
+    return hh + ':' + String(m).padStart(2, '0') + ' ' + ap;
+  }
+  function renderBedtime(d) {
+    var el = $('whBedtime'); var slp = d.sleep || {};
+    if (slp.needed_hours == null) { el.style.display = 'none'; return; }
+    var eff = (slp.efficiency != null ? slp.efficiency : 90) / 100; if (eff <= 0) eff = 0.9;
+    var wake = getWake(); var p = wake.split(':');
+    var wakeMin = (parseInt(p[0], 10) || 7) * 60 + (parseInt(p[1], 10) || 0);
+    var inBedMin = (slp.needed_hours / eff) * 60;
+    var bedMin = wakeMin - inBedMin - 15;
+    el.style.display = '';
+    el.innerHTML = 'Go to bed by <b>' + fmtClockMin(bedMin) + '</b> · needs ' +
+      slp.needed_hours.toFixed(1) + 'h · wake ' + fmtClockMin(wakeMin);
+  }
+  function renderSleepDetail(d) {
+    var slp = d.sleep || {}, box = $('whSleepDetail');
+    var has = slp.efficiency != null || slp.consistency != null || slp.debt_hours != null;
+    if (!has) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    $('whEff').textContent = slp.efficiency != null ? Math.round(slp.efficiency) + '%' : '—';
+    $('whCons').textContent = slp.consistency != null ? Math.round(slp.consistency) + '%' : '—';
+    $('whDebt').textContent = slp.debt_hours != null ? slp.debt_hours.toFixed(1) + 'h' : '—';
+  }
+  function clampN(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function renderFitAge(d) {
+    var box = $('whFitAge'); var age = getAge(); var rec = d.recovery || {};
+    var rhr = rec.rhr, hrv = rec.hrv_ms;
+    if (age == null || (rhr == null && hrv == null)) { box.style.display = 'none'; return; }
+    var rhrAdj = rhr != null ? clampN((rhr - 60) * 0.5, -10, 10) : 0;
+    var hrvAdj = hrv != null ? clampN((55 - hrv) * 0.15, -8, 8) : 0;
+    var fa = Math.round(clampN(age + rhrAdj + hrvAdj, age - 15, age + 15));
+    box.style.display = '';
+    $('whFitAgeNum').textContent = fa + ' yrs';
+  }
+  function sparkPath(vals, w, h) {
+    var nums = vals.filter(function (v) { return v != null; });
+    if (nums.length < 2) return null;
+    var min = Math.min.apply(null, nums), max = Math.max.apply(null, nums);
+    var span = (max - min) || 1, n = vals.length, pts = [];
+    for (var i = 0; i < n; i++) {
+      if (vals[i] == null) continue;
+      var x = (n === 1 ? 0 : (i / (n - 1)) * w);
+      var y = h - ((vals[i] - min) / span) * h;
+      pts.push((pts.length ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1));
+    }
+    return pts.join(' ');
+  }
+  function renderSparks(rows) {
+    var grid = $('whSparkGrid'); if (!grid) return;
+    var metrics = [
+      { key: 'recovery', label: 'Recovery', suffix: '%' },
+      { key: 'hrv', label: 'HRV', suffix: 'ms' },
+      { key: 'rhr', label: 'RHR', suffix: '' },
+      { key: 'strain', label: 'Strain', suffix: '' },
+    ];
+    var html = '';
+    metrics.forEach(function (m) {
+      var vals = rows.map(function (r) { return r[m.key] != null ? Number(r[m.key]) : null; });
+      var path = sparkPath(vals, 100, 28);
+      if (!path) return;
+      var nums = vals.filter(function (v) { return v != null; });
+      var first = nums[0], last = nums[nums.length - 1];
+      var delta = last - first;
+      var arrow = delta > 0 ? '<span class="d-up">▲</span>' : (delta < 0 ? '<span class="d-dn">▼</span>' : '');
+      var cur = (m.key === 'strain') ? last.toFixed(1) : Math.round(last);
+      html += '<div class="wh-spark"><div class="wh-spark-head"><span class="wh-spark-label">' + m.label +
+        '</span><span class="wh-spark-val">' + cur + m.suffix + ' ' + arrow + '</span></div>' +
+        '<svg viewBox="0 0 100 28" preserveAspectRatio="none"><path d="' + path +
+        '" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/></svg></div>';
+    });
+    if (!html) return;
+    grid.innerHTML = html;
+    $('whTrends').style.display = '';
+  }
+  async function loadTrends() {
+    var s = supa(); if (!s) return;
+    try {
+      var res = await s.from('whoop_history').select('day,recovery,hrv,rhr,strain').order('day', { ascending: true }).limit(30);
+      if (!res.error && res.data && res.data.length >= 2) renderSparks(res.data);
+    } catch (e) {}
+  }
+  (function wireSettings() {
+    var gear = $('whGear'), panel = $('whSettings'), wake = $('whWake'), age = $('whAge');
+    if (!gear) return;
+    wake.value = getWake(); if (getAge() != null) age.value = String(getAge());
+    gear.addEventListener('click', function () { panel.classList.toggle('open'); });
+    wake.addEventListener('change', function () { localStorage.setItem('whoop_wake_time', wake.value || '07:00'); loadAndRender(); });
+    age.addEventListener('change', function () { localStorage.setItem('whoop_age', String(parseInt(age.value, 10) || '')); loadAndRender(); });
+  })();
 
   // ---- format + zone helpers (presentation only) ----
   function fmtMins(ms) { var m = Math.round(ms / 60000), h = Math.floor(m / 60); return h + 'h ' + String(m % 60).padStart(2, '0') + 'm'; }
@@ -1391,6 +1527,9 @@ main {
       $('whVerdictReasons').innerHTML = reasons.join('<br>');
     } else { $('whVerdict').style.display = 'none'; }
 
+    renderBedtime(d);
+    renderSleepDetail(d);
+    renderFitAge(d);
     $('whUpdated').textContent = relTime(d.updated_at);
   }
 
@@ -1438,6 +1577,7 @@ main {
       if (r.ok && j.summary) { showConnected(); renderData(j.summary); }
       else if (r.ok) { await loadAndRender(); }
       else { showErr(j.error || 'Sync failed'); }
+      loadTrends();
     } catch (err) { showErr('Sync failed'); }
     finally { if (btn) setTimeout(function () { btn.classList.remove('spin'); }, 600); }
   }
@@ -1483,7 +1623,7 @@ main {
   // Wait for auth.js's Supabase client, then boot.
   var tries = 0;
   (function boot() {
-    if (supa()) { loadAndRender(); subscribe(); return; }
+    if (supa()) { loadAndRender(); loadTrends(); subscribe(); return; }
     if (tries++ > 100) { showDisconnected('WHOOP unavailable (offline).'); return; }
     setTimeout(boot, 100);
   })();
