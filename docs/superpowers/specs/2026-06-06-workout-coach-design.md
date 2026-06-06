@@ -1,109 +1,108 @@
-# Workout Coach — prescribed program + rules-based load recommendations
+# Workout Coach — seed the program into gym.html, reuse the existing engine
 
-**Date:** 2026-06-06
-**Status:** Approved (design) — pending spec review
+**Date:** 2026-06-06 (revised after deeper gym.html review)
+**Status:** Approved (revised design) — pending spec review
 **Sub-project:** ③ of 4 (①WHOOP+ ✅ → ②Calendar ✅ → **③Workout coach** → ④Daily coach)
 
-## Context
+## Context (what already exists)
 
-`gym.html` is the existing "po_coach" tracker: `state.exercises` (each with logs of
-`{weight, reps}`, a `bw` bodyweight flag), `estimate1RM` (Epley), today's-workout +
-history views, bodyweight + progress-photo logs, all synced via `PC_SYNCED_KEYS`
-(`po_coach_v1`, `po_coach_workout_done`, `po_coach_weights`, `po_coach_photos`).
+`gym.html` ("po_coach") already has the machinery we need:
+- **Exercise model:** `state.exercises` = `[{ id, name, gym, day, repMin, repMax, step,
+  startWeight, bw? }]`; logs in `state.logs[exId]` = `[{weight, reps}]`. Days
+  (`state.days`) and gyms (`state.gyms`) are first-class; the list filters by
+  `state.filterDay` / `state.filterGym`.
+- **Recommendation engine:** `getRx(ex, logs)` already returns Add-weight / Add-a-rep /
+  Repeat / Deload using `repMin/repMax/step`, `CONFIG.upgradeAtReps`, stuck-detection,
+  and bodyweight handling. It's rendered in the existing prescription UI.
+- Synced via `PC_SYNCED_KEYS` (`po_coach_v1`, …).
 
-It does **not** know the user's actual program (Connor's *Extended Eccentrics –
-Phase 2*: named days, A1/A2 supersets, tempos, W1–W4 rep waves) and gives **no load
-recommendations**. This sub-project adds both, reusing the existing logging so 1RM/
-history/trends keep working.
+So we do **not** build a new engine. ③ = get Connor's *Extended Eccentrics – Phase 2*
+program into this model and surface the program's structure (supersets, tempo, W1–W4
+rep wave) that the generic model doesn't yet express.
 
 ## Goals
-1. Encode the Extended Eccentrics program as structured data (user-verified).
-2. A "today's prescription" UI: pick day + week → see prescribed blocks (sets × reps
-   for that week, tempo, rest, notes) with a **recommended load** per exercise.
-3. Rules-based progressive-overload load suggestions that respect the rep wave.
+1. Seed the program as **days + exercises** in the existing model (so `getRx` recommends
+   loads for them automatically).
+2. Add three backward-compatible exercise fields: **`tempo`**, **`group`** (superset
+   label, e.g. "A1"), and **`weeks`** (the W1–W4 rep wave).
+3. Add a **week selector (W1–W4)** so the prescribed rep target — and thus `getRx` —
+   follows the wave. Day is chosen with the existing day filter.
 
 ## Non-goals
-AI, recovery-aware load adjustment (④), auto-advancing weeks, a full in-app program
-editor, and goal-based periodization. "Goal" here = progress the prescribed program.
+A new recommendation engine (reuse `getRx`), AI, recovery-aware adjustment (④),
+auto-advancing weeks, deleting/altering the user's existing exercises or logs.
 
 ## Architecture (all in `gym.html`)
 
-### 1. Program data — `DEFAULT_PROGRAM` const
-Reconstructed from the PDF and **shown to the user to verify/correct before reliance**
-(maintained as code; corrections = quick edits).
+### 1. Program seed data — `SEED_PROGRAM` const
+Reconstructed from the PDF and **user-verified before reliance** (Task 1 gate). Shape:
 ```js
-const DEFAULT_PROGRAM = {
-  name: 'Extended Eccentrics – Phase 2',
-  weeks: 4,
-  days: [
-    { id: 'fb1', name: 'Full Body 1', blocks: [
-      { group: 'A1', exId: 'ffe_split_squat', name: 'FFE Split Squat',
-        tempo: '4-3-3', rest: '10s', inc: 10, notes: 'full ROM; rest 10s between legs',
-        perWeek: [ {sets:3, reps:3}, {sets:3, reps:3}, {sets:3, reps:3}, {sets:3, reps:3} ] },
-      // …A2, B1, B2, C1, C2…
-    ]},
-    { id: 'strongman', name: 'Strongman ISO-Recovery', blocks: [ /* … */ ] },
-    { id: 'fb4', name: 'Full Body 4 (One Down Two Up)', blocks: [ /* … */ ] },
-    { id: 'fb5', name: 'Full Body 5 (Inside/Outside Leg)', blocks: [ /* … */ ] },
+const SEED_PROGRAM = {
+  gymId: 'gym_main',                 // a gym entry to ensure exists
+  days: [{ id: 'ee_fb1', name: 'EE · Full Body 1' }, /* strongman, fb4, fb5 */],
+  exercises: [
+    { id: 'ee_fb1_ffe_split_squat', name: 'FFE Split Squat', gym: 'gym_main',
+      day: 'ee_fb1', group: 'A1', tempo: '4-3-3', step: 5, startWeight: 60, bw: false,
+      // W1–W4 rep wave (repMin=repMax for prescribed singles like 3×3):
+      weeks: [ {repMin:3,repMax:3}, {repMin:3,repMax:3}, {repMin:3,repMax:3}, {repMin:3,repMax:3} ],
+      repMin: 3, repMax: 3,          // fallback when no week chosen
+      notes: 'full ROM; rest 10s between legs' },
+    // …each block A1/A2/B1/B2/C1/C2 across the 4 days…
   ],
 };
 ```
-Per block: `group` (superset label), `exId` (maps to a `state.exercises` entry),
-`name`, `tempo`, `rest`, `notes`, `inc` (load increment in the user's unit; lower-body
-~10, upper ~5), `perWeek[4]` of `{sets, reps}` (and optional per-week `note`/`load`
-hint for vest/sled). Bodyweight blocks carry `bw: true`.
+`weeks[i]` carries that week's `{repMin, repMax}`. Exercises with a true wave (e.g.
+8→5→3) differ per entry; constant ones repeat. `bw:true` for chin-ups/push-ups/etc.
 
-### 2. Exercise mapping
-On load, ensure every program `exId` exists in `state.exercises`; if missing, add
-`{ id: exId, name, bw }` so the existing logging/1RM/history work unchanged. (A merge
-step in the state init, not a rewrite of `buildDefaultExercises`.)
+### 2. Idempotent seeding (no data loss)
+On state load, after `normalize`:
+- Ensure `SEED_PROGRAM.gymId` exists in `state.gyms`; if not, add `{id,name}`.
+- For each `SEED_PROGRAM.days`, add to `state.days` if that `id` is absent.
+- For each `SEED_PROGRAM.exercises`, add to `state.exercises` if that `id` is absent.
+Match strictly by stable `id` so re-runs are no-ops and the user's existing
+exercises/logs are never touched or removed. (A `seededProgramV` marker can gate it.)
 
-### 3. Selection state — `po_coach_session`
-New synced object `{ dayId, week }` (week 1–4), persisted to `localStorage` and added
-to `PC_SYNCED_KEYS`. Week defaults to the last choice; day defaults to first.
+### 3. Week selector + `exForWeek`
+- New `state.programWeek` (1–4, default 1), persisted + added to `PC_SYNCED_KEYS`.
+- A small **W1–W4 control** in the gym UI near the day filter.
+- `exForWeek(ex, week)` → if `ex.weeks?.[week-1]`, return `{...ex, repMin:
+  ex.weeks[week-1].repMin, repMax: ex.weeks[week-1].repMax}`; else return `ex`.
+- Pass `exForWeek(ex, state.programWeek)` into `getRx` and the rendered rep target for
+  program exercises, so recommendations + prescription follow the selected week.
 
-### 4. UI — "Today's Prescription" section
-- **Day picker** (program day names) + **Week picker** (W1–W4).
-- For the selected day/week, render blocks in order, grouped by superset label, each row:
-  `A1 · FFE Split Squat — 3×3 · tempo 4-3-3 · rest 10s` + notes + **Recommended: <load>**.
-- Each row has a **Log** affordance that opens the existing set-logging flow for that
-  `exId` (weight × reps) → writes to `state.exercises` logs (existing path).
-
-### 5. Recommendation rule — `recommendLoad(ex, targetReps, inc)`
-Using the most recent log for `ex`:
-- No prior log → `null` → render "establish a baseline".
-- `bw` exercise → suggest rep progression ("aim {targetReps}; +1 rep when easy") or
-  "add vest" — no barbell number.
-- `last.reps >= targetReps` → suggest `last.weight + inc` (cleanly hit target → progress).
-- `last.reps <  targetReps` → suggest `last.weight` (hold/repeat).
-Loads shown in `unit()` (existing lb/kg). Tempo note reminds that eccentric work is
-intentionally submaximal.
+### 4. Display (tempo + superset group)
+Where the exercise/prescription row renders, show `group` (e.g. "A1") and `tempo`/notes
+when present (purely additive; non-program exercises are unaffected since the fields are
+absent).
 
 ## Data flow
-`DEFAULT_PROGRAM` (static) + `po_coach_session` (synced) drive the prescription view.
-Logging a prescribed exercise goes through the existing logger → `state.exercises`
-(`po_coach_v1`, synced). Recommendations are computed live from those logs. No new
-backend, no API, no cron.
+`SEED_PROGRAM` (static) seeds days/exercises once → user picks day (existing filter) +
+week (new selector) → list shows prescribed blocks with tempo/group → `getRx(exForWeek(
+ex, week), logs)` gives the load rec → user logs via the existing flow → recs update.
+No backend, no API.
 
 ## Error handling / edge cases
-- Missing/empty program day → "No exercises for this day."
-- Exercise with no history → baseline prompt (no crash).
-- kg users → increments still apply in their unit (values defined as numbers; documented
-  as lb-oriented defaults the user can adjust).
-- Program/exId mismatch → the merge step guarantees the exercise exists.
+- Re-seeding is a no-op (id match) — safe on every load.
+- Exercise with no logs → existing `getRx` returns null → existing "establish baseline"
+  copy shows (unchanged behavior).
+- `weeks` absent → `exForWeek` returns the exercise unchanged (generic exercises keep
+  working).
+- kg/lb: `step`/`startWeight` are in `state.units`; reconstruction uses the user's unit.
 
 ## Success criteria
-1. User picks a day + week and sees the correct prescribed blocks (sets×reps for that
-   week, tempo, rest, notes) for the verified program.
-2. Each exercise shows a sensible recommended load per the rule; logging updates it.
-3. Existing gym tracking (1RM, history, bodyweight, photos, sync) is unaffected.
-4. JS parses (inline-script check); state init merge doesn't corrupt existing logs.
+1. After load, the new EE days appear; picking a day shows its exercises with superset
+   labels + tempo, and `getRx` recommends loads.
+2. Changing the W1–W4 selector changes the prescribed reps (and the recommendation) for
+   exercises that wave.
+3. Existing exercises, logs, 1RM, history, photos, and sync are untouched (idempotent
+   seed verified).
+4. JS parses; seeding doesn't corrupt `state`.
 
-## Verification step (pre-build)
-Before implementation, reconstruct the full `DEFAULT_PROGRAM` from the PDF and present
-it to the user to confirm exercises, tempos, rest, and the W1–W4 rep waves are correct.
-Only build once the program data is confirmed.
+## Verification step (pre-build, Task 1 gate)
+Reconstruct the full `SEED_PROGRAM` (days, exercises, tempos, `step`, `bw`, and the
+W1–W4 `weeks`) from the PDF and present it to the user to confirm before building the
+seeding/UI. Build only once confirmed.
 
 ## Out of scope / future (④)
-Folding WHOOP recovery into load/intensity ("push hard / back off today"), AI
-explanations, calendar-aware session planning, and auto-progression.
+Fold WHOOP recovery into the recommendation ("push hard / back off today"), AI
+explanations, calendar-aware planning, auto week-advance.
