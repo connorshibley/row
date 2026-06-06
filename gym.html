@@ -1451,6 +1451,10 @@ img, video, canvas, svg { max-width: 100%; }
         <span class="po-seg-label">Day</span>
         <div class="po-seg-control" id="daySeg"></div>
       </div>
+      <div class="po-seg-row" id="weekSegRow">
+        <span class="po-seg-label">Week</span>
+        <div class="po-seg-control" id="weekSeg"></div>
+      </div>
     </div>
 
     <!-- Exercise -->
@@ -1698,6 +1702,102 @@ img, video, canvas, svg { max-width: 100%; }
   // ============================================================
   const LS_KEY = 'po_coach_v1';
 
+  // Verified Extended Eccentrics – Phase 2 (loaded lifts only; mobility/SMR/PNF skipped).
+  // Reps mostly hold at 3 with an eccentric-tempo wave; calf raises wave 8->5->3.
+  // Loads are seeds only — getRx recommends off the user's logged sets.
+  // Strongman/ISO day exercises carry noRx:true (time/carry/ISO — track load, no rep rec).
+  const SEED_PROGRAM = {
+    gymId: 'gym_main',
+    gymName: 'Main Gym',
+    days: [
+      { id: 'ee_fb1', name: 'EE · Full Body 1' },
+      { id: 'ee_fb4', name: 'EE · Full Body 4 (1↓2↑)' },
+      { id: 'ee_fb5', name: 'EE · Full Body 5 (In/Out Leg)' },
+      { id: 'ee_strong', name: 'EE · Strongman / ISO (Recovery)' },
+    ],
+    exercises: [
+      // ----- Full Body 1 -----
+      { id: 'ee_fb1_ffe_split_squat', name: 'FFE Split Squat', gym: 'gym_main', day: 'ee_fb1',
+        group: 'A1', tempo: 'ecc 3→7s', step: 5, startWeight: 60, bw: false,
+        notes: 'full ROM; rest 10s between legs; +vest',
+        repMin: 3, repMax: 3, weeks: [{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb1_weighted_pushup', name: 'Weighted Push-up (KB)', gym: 'gym_main', day: 'ee_fb1',
+        group: 'A2', tempo: 'ecc 3→7s', step: 1, startWeight: 0, bw: true,
+        notes: 'rest 120s; add vest/KB',
+        repMin: 3, repMax: 3, weeks: [{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb1_weighted_chinup', name: 'Weighted Chin-up', gym: 'gym_main', day: 'ee_fb1',
+        group: 'B1', tempo: 'ecc 3→7s', step: 2.5, startWeight: 25, bw: false,
+        notes: 'rest 10s; added load',
+        repMin: 3, repMax: 3, weeks: [{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb1_glute_bridge', name: 'Barbell Glute Bridge (heel on bench)', gym: 'gym_main', day: 'ee_fb1',
+        group: 'B2', tempo: 'ecc 3→7s', step: 5, startWeight: 75, bw: false,
+        notes: 'rest 90s',
+        repMin: 3, repMax: 3, weeks: [{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb1_calf_raise', name: 'Calf Raise', gym: 'gym_main', day: 'ee_fb1',
+        group: 'C1', tempo: 'ecc 3→7s', step: 5, startWeight: 60, bw: false,
+        notes: 'hold high, stretch deep; +vest; reps wave 8→5→3',
+        repMin: 3, repMax: 8, weeks: [{repMin:8,repMax:8},{repMin:5,repMax:5},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb1_copenhagen', name: 'Copenhagen (bent knee)', gym: 'gym_main', day: 'ee_fb1',
+        group: 'C2', tempo: '', step: 1, startWeight: 0, bw: true,
+        notes: 'adductor; bodyweight',
+        repMin: 3, repMax: 8, weeks: [{repMin:8,repMax:8},{repMin:5,repMax:5},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+
+      // ----- Full Body 4 (One Down Two Up) -----
+      { id: 'ee_fb4_squat_1d2u', name: 'Squat — One Down Two Up', gym: 'gym_main', day: 'ee_fb4',
+        group: 'A1', tempo: '1 down / 2 up', step: 5, startWeight: 75, bw: false,
+        notes: '+vest', repMin: 3, repMax: 3, weeks: [{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb4_row_1d2u', name: 'Row — One Down Two Up', gym: 'gym_main', day: 'ee_fb4',
+        group: 'A2', tempo: '1 down / 2 up', step: 2.5, startWeight: 60, bw: false,
+        notes: '', repMin: 3, repMax: 3, weeks: [{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb4_leg_curl_1d2u', name: 'Lying Leg Curl — One Down Two Up', gym: 'gym_main', day: 'ee_fb4',
+        group: 'B1', tempo: '1 down / 2 up', step: 2.5, startWeight: 40, bw: false,
+        notes: '', repMin: 3, repMax: 3, weeks: [{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb4_incline_press_1d2u', name: 'Incline Press — One Down Two Up', gym: 'gym_main', day: 'ee_fb4',
+        group: 'B2', tempo: '1 down / 2 up', step: 2.5, startWeight: 60, bw: false,
+        notes: '', repMin: 3, repMax: 3, weeks: [{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb4_calf_raise_1d2u', name: 'Calf Raise — One Down Two Up', gym: 'gym_main', day: 'ee_fb4',
+        group: 'C1', tempo: '1 down / 2 up', step: 5, startWeight: 105, bw: false,
+        notes: 'reps wave 8→5→3', repMin: 3, repMax: 8, weeks: [{repMin:8,repMax:8},{repMin:5,repMax:5},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+
+      // ----- Full Body 5 (Inside/Outside Leg) -----
+      { id: 'ee_fb5_landmine_lateral', name: 'Landmine / Lateral Outside Leg', gym: 'gym_main', day: 'ee_fb5',
+        group: 'A1', tempo: 'ecc 3→7s', step: 2.5, startWeight: 30, bw: false,
+        notes: '', repMin: 3, repMax: 3, weeks: [{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb5_dips', name: 'Dips', gym: 'gym_main', day: 'ee_fb5',
+        group: 'A2', tempo: 'ecc 3→7s', step: 1, startWeight: 0, bw: true,
+        notes: 'add load when easy', repMin: 3, repMax: 5, weeks: [{repMin:5,repMax:5},{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb5_glute_bridge_medmax', name: 'Glute Bridge (Med/Max)', gym: 'gym_main', day: 'ee_fb5',
+        group: 'B1', tempo: 'ecc 3→7s', step: 5, startWeight: 60, bw: false,
+        notes: '', repMin: 3, repMax: 3, weeks: [{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb5_scott_row', name: 'Scott One-Arm Cable Row', gym: 'gym_main', day: 'ee_fb5',
+        group: 'B2', tempo: 'ecc 3→7s', step: 2.5, startWeight: 20, bw: false,
+        notes: '', repMin: 3, repMax: 3, weeks: [{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3},{repMin:3,repMax:3}] },
+      { id: 'ee_fb5_pallof_press', name: 'Pallof Press', gym: 'gym_main', day: 'ee_fb5',
+        group: 'C1', tempo: 'press + hold', step: 2.5, startWeight: 15, bw: false,
+        notes: 'banded + weight; 2×6', repMin: 6, repMax: 6, weeks: [{repMin:6,repMax:6},{repMin:6,repMax:6},{repMin:6,repMax:6},{repMin:6,repMax:6}] },
+
+      // ----- Strongman / Long-Duration ISO (Recovery): time/carry/ISO — track load, no rep rec -----
+      { id: 'ee_strong_sled_march', name: 'Sled March', gym: 'gym_main', day: 'ee_strong',
+        group: 'A1', tempo: '15s work', step: 5, startWeight: 0, bw: false, noRx: true,
+        notes: '4 rounds · 45s rest', repMin: 1, repMax: 1 },
+      { id: 'ee_strong_lat_crossover', name: 'Lateral Crossovers (sled)', gym: 'gym_main', day: 'ee_strong',
+        group: 'A2', tempo: '15s work', step: 5, startWeight: 0, bw: false, noRx: true,
+        notes: '4 rounds · 45s rest', repMin: 1, repMax: 1 },
+      { id: 'ee_strong_bwd_sled', name: 'Backward Sled', gym: 'gym_main', day: 'ee_strong',
+        group: 'B1', tempo: '15s work', step: 5, startWeight: 0, bw: false, noRx: true,
+        notes: '4 rounds · 45s rest', repMin: 1, repMax: 1 },
+      { id: 'ee_strong_farmers_walk', name: "Farmer's Walk", gym: 'gym_main', day: 'ee_strong',
+        group: 'B2', tempo: 'carry', step: 5, startWeight: 0, bw: false, noRx: true,
+        notes: '4 rounds · 45s rest', repMin: 1, repMax: 1 },
+      { id: 'ee_strong_kb_swing', name: 'KB Swing', gym: 'gym_main', day: 'ee_strong',
+        group: 'C1', tempo: '30–60s', step: 4, startWeight: 0, bw: false, noRx: true,
+        notes: 'recovery pace', repMin: 1, repMax: 1 },
+      { id: 'ee_strong_mb_slam', name: 'MB Slam', gym: 'gym_main', day: 'ee_strong',
+        group: 'C2', tempo: '~2 min', step: 1, startWeight: 0, bw: false, noRx: true,
+        notes: 'recovery pace', repMin: 1, repMax: 1 },
+    ],
+  };
+
   function buildDefaultExercises() {
     return CONFIG.defaultExercises.map((e, i) => Object.assign({
       id: 'seed_' + i + '_' + Date.now()
@@ -1743,6 +1843,8 @@ img, video, canvas, svg { max-width: 100%; }
         index: idx
       };
     }
+    seedProgram(s, SEED_PROGRAM);
+    if (!s.programWeek) s.programWeek = 1;
     return s;
   }
   function saveState() {
@@ -1803,6 +1905,35 @@ img, video, canvas, svg { max-width: 100%; }
     return { type: 'hold', weight: weight, reps: repMin, tag: 'Repeat', reason: reps + ' reps short of ' + repMin + '-' + upgradeAt + '. Repeat ' + weight + unit() + ' until you hit ' + repMin + '+ clean.' };
   }
 
+  // Returns a copy of ex with repMin/repMax overridden for the given program week (1-indexed).
+  // If ex has no .weeks array, returns ex unchanged — safe for non-program exercises.
+  function exForWeek(ex, week) {
+    if (ex && ex.weeks && ex.weeks[week - 1]) {
+      const w = ex.weeks[week - 1];
+      return Object.assign({}, ex, { repMin: w.repMin, repMax: w.repMax });
+    }
+    return ex;
+  }
+
+  // Idempotently merges a SEED_PROGRAM into state (gyms, days, exercises).
+  // Runs on every normalize() call — second+ runs are no-ops due to id checks.
+  function seedProgram(state, program) {
+    if (!program) return state;
+    state.gyms = state.gyms || [];
+    if (program.gymId && !state.gyms.some(g => g.id === program.gymId)) {
+      state.gyms.push({ id: program.gymId, name: program.gymName || 'Main Gym' });
+    }
+    state.days = state.days || [];
+    (program.days || []).forEach(d => {
+      if (!state.days.some(x => x.id === d.id)) state.days.push({ id: d.id, name: d.name });
+    });
+    state.exercises = state.exercises || [];
+    (program.exercises || []).forEach(e => {
+      if (!state.exercises.some(x => x.id === e.id)) state.exercises.push(Object.assign({}, e));
+    });
+    return state;
+  }
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -1825,6 +1956,22 @@ img, video, canvas, svg { max-width: 100%; }
         saveState(); renderAll();
       });
     });
+    // W1–W4 week selector (only rendered when program exercises are present)
+    const weekSeg = $('weekSeg');
+    const weekRow = $('weekSegRow');
+    const hasProgramEx = state.exercises.some(e => e.weeks);
+    if (weekRow) weekRow.style.display = hasProgramEx ? '' : 'none';
+    if (weekSeg) {
+      weekSeg.innerHTML = [1,2,3,4].map(n =>
+        '<button class="po-seg-btn ' + (n === (state.programWeek || 1) ? 'active' : '') + '" data-week="' + n + '">W' + n + '</button>'
+      ).join('');
+      weekSeg.querySelectorAll('.po-seg-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          state.programWeek = parseInt(b.dataset.week, 10);
+          saveState(); renderAll();
+        });
+      });
+    }
   }
   function renderSelect() {
     const sel = $('exSelect');
@@ -1844,7 +1991,8 @@ img, video, canvas, svg { max-width: 100%; }
     sel.innerHTML = f.map(e => {
       const wLbl = e.bw ? ' · BW' : (e.startWeight ? ' · ' + e.startWeight + unit() : '');
       const sh = e.gym === 'both' ? ' ★' : '';
-      return '<option value="' + e.id + '"' + (e.id === state.currentEx ? ' selected' : '') + '>' + escape(e.name) + wLbl + sh + '</option>';
+      const grp = e.group ? e.group + ' · ' : '';
+      return '<option value="' + e.id + '"' + (e.id === state.currentEx ? ' selected' : '') + '>' + grp + escape(e.name) + wLbl + sh + '</option>';
     }).join('');
   }
   function renderForm() {
@@ -1887,22 +2035,46 @@ img, video, canvas, svg { max-width: 100%; }
     const ex = getCurrentEx();
     if (!ex) { wrap.innerHTML = '<div class="po-rx-empty">Pick a gym and day above.</div>'; return; }
     const logs = getLogs();
-    const rx = getRx(ex, logs);
+    // Use week-aware exercise for rep targets and recommendation engine
+    const exW = exForWeek(ex, state.programWeek || 1);
+    // Build label prefix for group (e.g. "A1 · ") and tempo/notes suffix
+    const groupPrefix = ex.group ? escape(ex.group) + ' · ' : '';
+    const tempoStr = ex.tempo ? ' · ' + escape(ex.tempo) : '';
+    const notesStr = ex.notes ? '<span class="po-rx-notes">' + escape(ex.notes) + '</span>' : '';
+    const label = groupPrefix + escape(ex.name);
+    // noRx: track-load hint for Strongman/ISO exercises
+    if (ex.noRx) {
+      wrap.innerHTML = '<div class="po-rx-card"><div class="po-rx-label">' + label + '</div>'
+        + '<div class="po-rx-headline">Track load' + tempoStr + '</div>'
+        + '<span class="po-rx-tag hold">Time / Carry / ISO</span>'
+        + (notesStr ? '<p class="po-rx-reason">' + notesStr + '</p>' : '')
+        + '</div>';
+      return;
+    }
+    const rx = getRx(exW, logs);
     if (!rx) {
-      const sw = ex.startWeight, sr = ex.repMin;
-      const head = ex.bw
+      const sw = exW.startWeight, sr = exW.repMin;
+      const head = exW.bw
         ? '<span class="po-accent">' + sr + '</span> reps'
         : '<span class="po-accent">' + (sw || 0) + unit() + '</span> × ' + sr + ' reps';
-      const reason = ex.bw
-        ? 'Aim for ' + ex.repMin + '-' + ex.repMax + ' clean reps. Once you hit ' + ex.repMax + '+, push for more.'
-        : 'Hit ' + ex.repMin + '-' + ex.repMax + ' reps. Once logged, the coach will start prescribing.';
-      wrap.innerHTML = '<div class="po-rx-card"><div class="po-rx-label">' + escape(ex.name) + ' · starting point</div><div class="po-rx-headline">' + head + '</div><span class="po-rx-tag hold">Start here</span><p class="po-rx-reason">' + reason + '</p></div>';
+      const reason = exW.bw
+        ? 'Aim for ' + exW.repMin + '-' + exW.repMax + ' clean reps. Once you hit ' + exW.repMax + '+, push for more.'
+        : 'Hit ' + exW.repMin + '-' + exW.repMax + ' reps. Once logged, the coach will start prescribing.';
+      wrap.innerHTML = '<div class="po-rx-card"><div class="po-rx-label">' + label + ' · starting point</div>'
+        + '<div class="po-rx-headline">' + head + tempoStr + '</div>'
+        + '<span class="po-rx-tag hold">Start here</span>'
+        + '<p class="po-rx-reason">' + reason + (notesStr ? ' ' + notesStr : '') + '</p>'
+        + '</div>';
       return;
     }
     const head = rx.bw
       ? '<span class="po-accent">' + rx.reps + '</span> reps'
       : '<span class="po-accent">' + rx.weight + unit() + '</span> × ' + rx.reps + ' reps';
-    wrap.innerHTML = '<div class="po-rx-card po-rx-' + rx.type + '"><div class="po-rx-label">' + escape(ex.name) + '</div><div class="po-rx-headline">' + head + '</div><span class="po-rx-tag ' + rx.type + '">' + rx.tag + '</span><p class="po-rx-reason">' + rx.reason + '</p></div>';
+    wrap.innerHTML = '<div class="po-rx-card po-rx-' + rx.type + '"><div class="po-rx-label">' + label + '</div>'
+      + '<div class="po-rx-headline">' + head + tempoStr + '</div>'
+      + '<span class="po-rx-tag ' + rx.type + '">' + rx.tag + '</span>'
+      + '<p class="po-rx-reason">' + rx.reason + (notesStr ? ' ' + notesStr : '') + '</p>'
+      + '</div>';
   }
   function renderStats() {
     const ex = getCurrentEx();
@@ -2035,8 +2207,9 @@ img, video, canvas, svg { max-width: 100%; }
     const ex = getCurrentEx();
     let repMin, repMax;
     if (ex) {
-      repMin = Math.max(1, parseInt(ex.repMin, 10) || 1);
-      repMax = Math.max(repMin, parseInt(ex.repMax, 10) || repMin);
+      const exW = exForWeek(ex, state.programWeek || 1);
+      repMin = Math.max(1, parseInt(exW.repMin, 10) || 1);
+      repMax = Math.max(repMin, parseInt(exW.repMax, 10) || repMin);
     } else {
       repMin = 4; repMax = 12;
     }
