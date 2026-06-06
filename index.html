@@ -636,7 +636,7 @@ body::after {
     <div class="day-ring-text">
       <div class="day-ring-status"    id="dayRingStatus">Loading…</div>
       <div class="day-ring-remaining" id="dayRingRemaining">—</div>
-      <div class="day-ring-hours">8:00 AM – 12:00 AM</div>
+      <div class="day-ring-hours" id="dayRingHours">8:00 AM – 12:00 AM</div>
     </div>
   </div>
 
@@ -701,8 +701,8 @@ body::after {
   // Paste your Anthropic key here to enable ✨ Polish. Empty = falls back to plain add.
   const ANTHROPIC_API_KEY = '';
 
-  const WAKE_HOUR  = 8;
-  const SLEEP_HOUR = 24;
+  let WAKE_HOUR  = 8;   // defaults; overridden by WHOOP sleep (applyWhoopSleep)
+  let SLEEP_HOUR = 24;
 
   // ---------- storage helpers ----------
   function storeGet(key) {
@@ -970,6 +970,45 @@ body::after {
     const minsLeft = (SLEEP_HOUR - hours) * 60;
     remainingEl.textContent = formatRemaining(minsLeft) + ' awake time left';
   }
+
+  // ---------- WHOOP sleep → day ring ----------
+  // Drive WAKE_HOUR / SLEEP_HOUR + the schedule label from the latest WHOOP
+  // sleep (app_state.whoop): wake = sleep end, bedtime = sleep start. Falls back
+  // to deriving bedtime from in-bed duration, then to the 8am–midnight defaults.
+  function whoopFmtClock(d) {
+    const h = d.getHours(), m = d.getMinutes(), ap = h < 12 ? 'AM' : 'PM', hh = h % 12 || 12;
+    return hh + ':' + pad2(m) + ' ' + ap;
+  }
+  async function applyWhoopSleep() {
+    const s = window.__supa; if (!s) return;
+    try {
+      const r = await s.from('app_state').select('data').eq('key', 'whoop').maybeSingle();
+      const w = r && r.data && r.data.data; const slp = w && w.sleep; if (!slp) return;
+      let startISO = slp.start || null;
+      const endISO = slp.end || slp.at || null;
+      if (!startISO && endISO && slp.stages && slp.stages.in_bed_ms) {
+        startISO = new Date(new Date(endISO).getTime() - slp.stages.in_bed_ms).toISOString();
+      }
+      if (!startISO || !endISO) return;
+      const bed = new Date(startISO), wake = new Date(endISO);
+      if (isNaN(bed.getTime()) || isNaN(wake.getTime())) return;
+      let bedH = bed.getHours() + bed.getMinutes() / 60;
+      const wakeH = wake.getHours() + wake.getMinutes() / 60;
+      if (bedH < 12) bedH += 24; // bedtime past midnight
+      WAKE_HOUR = wakeH; SLEEP_HOUR = bedH;
+      const lbl = document.getElementById('dayRingHours');
+      if (lbl) lbl.textContent = whoopFmtClock(bed) + ' – ' + whoopFmtClock(wake);
+      updateDayRing();
+    } catch (e) {}
+  }
+  (function bootWhoopSleep() {
+    let tries = 0;
+    (function poll() {
+      if (window.__supa) { applyWhoopSleep(); return; }
+      if (tries++ > 100) return;
+      setTimeout(poll, 100);
+    })();
+  })();
 
   // ---------- Row building ----------
   function makeInlineEdit(textEl, goals, idx, key, reload) {
