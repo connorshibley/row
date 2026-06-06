@@ -636,7 +636,23 @@ body::after {
     <div class="day-ring-text">
       <div class="day-ring-status"    id="dayRingStatus">Loading…</div>
       <div class="day-ring-remaining" id="dayRingRemaining">—</div>
-      <div class="day-ring-hours" id="dayRingHours">10:30 PM – 7:20 AM</div>
+      <div class="day-ring-hours"><span id="dayRingHours">10:30 PM – 7:20 AM</span> <button id="dayRingEdit" class="dr-edit" type="button" aria-label="Edit sleep schedule" title="Edit">✎</button></div>
+      <div id="dayRingEditor" class="dr-editor" hidden>
+        <label class="dr-fld">Bed <input id="edBed" type="time"></label>
+        <label class="dr-fld">Wake <input id="edWake" type="time"></label>
+        <button id="edSave" class="dr-btn" type="button">Save</button>
+        <button id="edCancel" class="dr-btn dr-btn-ghost" type="button">Cancel</button>
+      </div>
+      <style>
+        .dr-edit{background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:12px;padding:0 4px;line-height:1;}
+        .dr-edit:hover{color:var(--text-1,#fff);}
+        .dr-editor{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;}
+        .dr-editor[hidden]{display:none;}
+        .dr-fld{font-size:11px;color:var(--text-tertiary);display:inline-flex;align-items:center;gap:5px;}
+        .dr-fld input{background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.14);border-radius:6px;color:#fff;font:inherit;font-size:12px;padding:3px 6px;}
+        .dr-btn{background:var(--accent,#E07658);color:#fff;border:none;border-radius:6px;padding:4px 11px;font:inherit;font-size:11px;font-weight:600;cursor:pointer;}
+        .dr-btn-ghost{background:rgba(255,255,255,0.06);color:var(--text-tertiary);}
+      </style>
     </div>
   </div>
 
@@ -995,6 +1011,26 @@ body::after {
     updateDayRing();
   }
   applyWhoopSleep();
+  (function wireScheduleEdit() {
+    const editBtn = document.getElementById('dayRingEdit');
+    const editor = document.getElementById('dayRingEditor');
+    if (!editBtn || !editor) return;
+    const bedI = document.getElementById('edBed'), wakeI = document.getElementById('edWake');
+    function openEd() {
+      bedI.value = localStorage.getItem('whoop_bedtime') || '22:30';
+      wakeI.value = localStorage.getItem('whoop_wake_time') || '07:20';
+      editor.removeAttribute('hidden');
+    }
+    function closeEd() { editor.setAttribute('hidden', ''); }
+    editBtn.addEventListener('click', function () { editor.hasAttribute('hidden') ? openEd() : closeEd(); });
+    document.getElementById('edCancel').addEventListener('click', closeEd);
+    document.getElementById('edSave').addEventListener('click', function () {
+      if (wakeI.value) localStorage.setItem('whoop_wake_time', wakeI.value);
+      if (bedI.value) localStorage.setItem('whoop_bedtime', bedI.value);
+      applyWhoopSleep();
+      closeEd();
+    });
+  })();
 
   // ---------- Row building ----------
   function makeInlineEdit(textEl, goals, idx, key, reload) {
@@ -1344,7 +1380,7 @@ body::after {
 <script>
   window.CLOUD_SYNC = {
     appKey: 'dashboard',
-    keys: ['goal_streak_v1'],
+    keys: ['goal_streak_v1', 'whoop_wake_time', 'whoop_bedtime'],
     prefixes: ['goals:'],
   };
 </script>
