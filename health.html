@@ -579,6 +579,28 @@ main {
     .wh-spark svg { display:block; width:100%; height:28px; }
     .wh-collecting { font-size:11px; color:var(--text-tertiary); }
 </style>
+<style>
+  .cal-card { background: rgba(255,255,255,0.025); border: 1px solid var(--border-soft,transparent); border-radius: 22px; padding: 20px 22px 18px; box-shadow: 0 1px 0 0 rgba(255,255,255,0.06) inset, 0 12px 40px rgba(0,0,0,0.45); }
+  .cal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .cal-eye { font-size:11px; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-tertiary); }
+  .cal-actions { display:flex; gap:8px; }
+  .cal-btn { width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:var(--text-secondary); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+  .cal-btn:hover { color:var(--text-primary); background:rgba(255,255,255,0.10); }
+  .cal-row { display:flex; gap:12px; padding:10px 0; border-top:1px solid var(--border-soft,rgba(255,255,255,0.05)); }
+  .cal-row:first-child { border-top:none; }
+  .cal-time { width:74px; flex-shrink:0; font-family:var(--font-mono); font-size:12px; color:var(--text-secondary); font-variant-numeric:tabular-nums; }
+  .cal-title { font-size:13.5px; color:var(--text-primary); font-weight:600; }
+  .cal-dur { font-size:11px; color:var(--text-tertiary); margin-top:2px; }
+  .cal-empty { color:var(--text-tertiary); font-size:13px; padding:8px 0; }
+  .cal-connect { text-align:center; padding:8px 4px; }
+  .cal-connect p { color:var(--text-tertiary); font-size:13px; margin:0 0 12px; }
+  .cal-settings { display:none; margin-top:12px; }
+  .cal-settings.open { display:block; }
+  .cal-settings input { width:100%; box-sizing:border-box; background:rgba(0,0,0,0.28); border:1px solid rgba(255,255,255,0.10); border-radius:8px; color:var(--text-primary); font:inherit; font-size:12px; padding:9px 10px; margin-bottom:8px; font-family:var(--font-mono); }
+  .cal-save { background:var(--accent,#1D9E75); color:#fff; border:none; border-radius:8px; padding:9px 16px; font:inherit; font-weight:600; font-size:12px; cursor:pointer; }
+  .cal-err { background:rgba(255,107,107,0.08); border:1px solid rgba(255,107,107,0.28); color:#FF8A8A; padding:9px 11px; border-radius:9px; font-size:11.5px; margin-bottom:10px; }
+  .cal-hint { font-size:11px; color:var(--text-tertiary); margin-top:6px; line-height:1.5; }
+</style>
 </head>
 <body>
 
@@ -672,6 +694,24 @@ main {
         </div>
         <button id="whDisconnectBtn" class="wh-disconnect-link" type="button">Disconnect</button>
       </div>
+    </div>
+  </div>
+
+  <div class="section-title">Today</div>
+  <div class="cal-card" id="calCard">
+    <div class="cal-head">
+      <span class="cal-eye">Calendar</span>
+      <div class="cal-actions">
+        <button id="calRefresh" class="cal-btn" type="button" aria-label="Refresh" style="display:none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15A9 9 0 1 1 5.64 5.64L23 10"/></svg></button>
+        <button id="calGear" class="cal-btn" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+      </div>
+    </div>
+    <div id="calErr" class="cal-err" style="display:none"></div>
+    <div id="calBody"><div class="cal-empty">Loading…</div></div>
+    <div id="calSettings" class="cal-settings">
+      <input id="calUrl" type="text" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" autocomplete="off" spellcheck="false" />
+      <button id="calSave" class="cal-save" type="button">Save</button>
+      <div class="cal-hint">Google Calendar → Settings → your calendar → "Secret address in iCal format" → copy that URL here.</div>
     </div>
   </div>
 
@@ -1627,6 +1667,89 @@ main {
     if (tries++ > 100) { showDisconnected('WHOOP unavailable (offline).'); return; }
     setTimeout(boot, 100);
   })();
+})();
+</script>
+
+<script>
+// Calendar (Today) card — reads /api/calendar/events; ICS URL stored server-side.
+(function () {
+  'use strict';
+  var card = document.getElementById('calCard'); if (!card) return;
+  var $ = function (id) { return document.getElementById(id); };
+  function supa() { return window.__supa || null; }
+  async function token() {
+    try { var s = supa(); if (!s) return null; var r = await s.auth.getSession();
+      return r && r.data && r.data.session ? r.data.session.access_token : null; } catch (e) { return null; }
+  }
+  function authH(t) { return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }; }
+  function showErr(m) { var e = $('calErr'); e.textContent = m || ''; e.style.display = m ? 'block' : 'none'; }
+  function fmtTime(iso) {
+    var d = (/Z$/.test(iso)) ? new Date(iso) : (function () {
+      var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso);
+      return m ? new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]) : new Date(iso);
+    })();
+    var h = d.getHours(), mi = d.getMinutes(), ap = h < 12 ? 'AM' : 'PM', hh = h % 12 || 12;
+    return hh + ':' + (mi < 10 ? '0' : '') + mi + ' ' + ap;
+  }
+  function localDay(iso) {
+    if (!/T/.test(iso)) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null; }
+    var d = (/Z$/.test(iso)) ? new Date(iso) : (function () {
+      var p = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso); return new Date(+p[1], +p[2]-1, +p[3], +p[4], +p[5]);
+    })();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  function isToday(iso) {
+    var d = localDay(iso); if (!d) return false;
+    var n = new Date(); var t0 = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    return d.getTime() === t0.getTime();
+  }
+  function durLabel(s, e) {
+    if (!e) return ''; var a = new Date(s.replace(/Z$/, '')), b = new Date(e.replace(/Z$/, ''));
+    var mins = Math.round((b - a) / 60000); if (mins <= 0 || mins > 1440) return '';
+    var h = Math.floor(mins / 60), m = mins % 60; return (h ? h + 'h ' : '') + (m ? m + 'm' : '').trim();
+  }
+  function renderEvents(events) {
+    var today = (events || []).filter(function (e) { return e.allDay ? isToday(e.start) : isToday(e.start); });
+    today.sort(function (a, b) { return (a.allDay ? 0 : 1) - (b.allDay ? 0 : 1) || (a.start < b.start ? -1 : 1); });
+    $('calRefresh').style.display = '';
+    if (!today.length) { $('calBody').innerHTML = '<div class="cal-empty">Nothing scheduled today.</div>'; return; }
+    $('calBody').innerHTML = today.map(function (e) {
+      var time = e.allDay ? 'All day' : fmtTime(e.start);
+      var dur = e.allDay ? '' : durLabel(e.start, e.end);
+      return '<div class="cal-row"><div class="cal-time">' + time + '</div><div><div class="cal-title">' +
+        (e.title || '(busy)').replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }) +
+        '</div>' + (dur ? '<div class="cal-dur">' + dur + '</div>' : '') + '</div></div>';
+    }).join('');
+  }
+  function showConnect() { $('calRefresh').style.display = 'none'; $('calBody').innerHTML = '<div class="cal-connect"><p>Connect your Google Calendar to see today\'s schedule.</p></div>'; $('calSettings').classList.add('open'); }
+  async function load() {
+    var t = await token(); if (!t) { $('calBody').innerHTML = '<div class="cal-empty">Sign in to see your calendar.</div>'; return; }
+    showErr('');
+    try {
+      var r = await fetch('/api/calendar/events', { headers: authH(t) });
+      var j = await r.json();
+      if (!r.ok) { showErr(j.error || 'Calendar error'); return; }
+      if (!j.connected) { showConnect(); return; }
+      $('calSettings').classList.remove('open');
+      renderEvents(j.events || []);
+    } catch (e) { showErr('Network error loading calendar'); }
+  }
+  $('calGear').addEventListener('click', function () { $('calSettings').classList.toggle('open'); });
+  $('calRefresh').addEventListener('click', load);
+  $('calSave').addEventListener('click', async function () {
+    var url = ($('calUrl').value || '').trim(); if (!url) return;
+    var btn = $('calSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    var t = await token();
+    try {
+      var r = await fetch('/api/calendar/save', { method: 'POST', headers: authH(t), body: JSON.stringify({ ics_url: url }) });
+      var j = await r.json();
+      if (!r.ok) { showErr(j.error || 'Save failed'); }
+      else { showErr(''); $('calUrl').value = ''; await load(); }
+    } catch (e) { showErr('Save failed'); }
+    finally { btn.disabled = false; btn.textContent = 'Save'; }
+  });
+  var tries = 0;
+  (function boot() { if (supa()) { load(); return; } if (tries++ > 100) { $('calBody').innerHTML = '<div class="cal-empty">Calendar unavailable.</div>'; return; } setTimeout(boot, 100); })();
 })();
 </script>
 
