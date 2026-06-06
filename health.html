@@ -601,10 +601,39 @@ main {
   .cal-err { background:rgba(255,107,107,0.08); border:1px solid rgba(255,107,107,0.28); color:#FF8A8A; padding:9px 11px; border-radius:9px; font-size:11.5px; margin-bottom:10px; }
   .cal-hint { font-size:11px; color:var(--text-tertiary); margin-top:6px; line-height:1.5; }
 </style>
+<style>
+  .coach-card { background: linear-gradient(180deg, rgba(224,118,88,0.06), rgba(255,255,255,0.025)); border: 1px solid var(--border-soft,transparent); border-radius: 22px; padding: 20px 22px 18px; box-shadow: 0 1px 0 0 rgba(255,255,255,0.06) inset, 0 12px 40px rgba(0,0,0,0.45); margin-bottom: 28px; }
+  .coach-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .coach-eye { font-size:11px; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-tertiary); }
+  .coach-refresh { width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:var(--text-secondary); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+  .coach-refresh:hover { color:var(--text-primary); background:rgba(255,255,255,0.10); }
+  .coach-verdict { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .coach-dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+  .coach-dot.green { background:#6BE3A4; box-shadow:0 0 10px rgba(107,227,164,0.6);} .coach-dot.yellow{background:#F2C063;box-shadow:0 0 10px rgba(242,192,99,0.6);} .coach-dot.red{background:#FF8A8A;box-shadow:0 0 10px rgba(255,138,138,0.6);}
+  .coach-headline { font-size:16px; font-weight:700; color:var(--text-primary); line-height:1.35; }
+  .coach-reasons { font-size:12.5px; color:var(--text-secondary); line-height:1.6; margin:6px 0 0; padding-left:16px; }
+  .coach-section-t { font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-tertiary); margin:16px 0 8px; }
+  .coach-evt { display:flex; gap:10px; padding:8px 0; border-top:1px solid var(--border-soft,rgba(255,255,255,0.05)); }
+  .coach-evt:first-of-type { border-top:none; }
+  .coach-evt-title { font-weight:600; color:var(--text-primary); font-size:13px; min-width:120px; flex-shrink:0; }
+  .coach-evt-guide { font-size:12.5px; color:var(--text-secondary); line-height:1.5; }
+  .coach-workout { margin-top:14px; padding:12px 14px; background:rgba(255,255,255,0.025); border-left:2px solid var(--accent,#E07658); border-radius:0 10px 10px 0; font-size:13px; color:var(--text-secondary); line-height:1.5; }
+  .coach-muted { color:var(--text-tertiary); font-size:13px; }
+  .coach-setup { font-size:12.5px; color:var(--text-tertiary); line-height:1.6; }
+  .coach-setup code { background:rgba(255,255,255,0.06); padding:1px 6px; border-radius:4px; font-family:var(--font-mono); font-size:11.5px; }
+</style>
 </head>
 <body>
 
 <main>
+  <div class="section-title">Daily Coach</div>
+  <div class="coach-card" id="coachCard">
+    <div class="coach-head">
+      <span class="coach-eye">AI · today</span>
+      <button id="coachRefresh" class="coach-refresh" type="button" aria-label="Refresh" title="Refresh"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15A9 9 0 1 1 5.64 5.64L23 10"/></svg></button>
+    </div>
+    <div id="coachBody"><div class="coach-muted">Loading…</div></div>
+  </div>
 
   <!-- ===== WHOOP card v2 (data via secure backend: app_state.whoop) ===== -->
   <div class="whoop-section">
@@ -1750,6 +1779,109 @@ main {
   });
   var tries = 0;
   (function boot() { if (supa()) { load(); return; } if (tries++ > 100) { $('calBody').innerHTML = '<div class="cal-empty">Calendar unavailable.</div>'; return; } setTimeout(boot, 100); })();
+})();
+</script>
+
+<script>
+// Daily Coach card — gathers recovery+calendar+workout, calls /api/coach (Claude),
+// renders verdict + per-event guidance + workout note. Cached once/day in localStorage.
+(function () {
+  'use strict';
+  var card = document.getElementById('coachCard'); if (!card) return;
+  var $ = function (id) { return document.getElementById(id); };
+  var CACHE_KEY = 'coach_cache_v1';
+  function supa() { return window.__supa || null; }
+  function todayKey() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate(); }
+  async function token() {
+    try { var s = supa(); if (!s) return null; var r = await s.auth.getSession();
+      return r && r.data && r.data.session ? r.data.session.access_token : null; } catch (e) { return null; }
+  }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+
+  async function gatherContext(t) {
+    var ctx = { recovery: null, events: [], workout: null };
+    // recovery from app_state.whoop
+    try {
+      var s = supa();
+      if (s) {
+        var r = await s.from('app_state').select('data').eq('key','whoop').maybeSingle();
+        if (r && r.data && r.data.data) {
+          var w = r.data.data;
+          ctx.recovery = {
+            score: w.recovery && w.recovery.score, hrv_ms: w.recovery && w.recovery.hrv_ms,
+            rhr: w.recovery && w.recovery.rhr, sleep_perf: w.sleep && w.sleep.performance,
+            day_strain: w.strain && w.strain.day_strain,
+          };
+        }
+      }
+    } catch (e) {}
+    // today's events
+    try {
+      var er = await fetch('/api/calendar/events', { headers: { Authorization: 'Bearer ' + t } });
+      var ej = await er.json();
+      if (ej && ej.connected && ej.events) {
+        var now = new Date(); var t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        var t1 = t0 + 86400000;
+        ctx.events = ej.events.filter(function (e) {
+          var d = /Z$/.test(e.start) ? new Date(e.start) : new Date(e.start.replace('Z',''));
+          var ms = d.getTime(); return ms >= t0 - 6*3600000 && ms < t1;
+        }).map(function (e) { return { title: e.title, start: e.start, allDay: !!e.allDay }; });
+      }
+    } catch (e) {}
+    // workout day + week from po_coach_v1
+    try {
+      var raw = localStorage.getItem('po_coach_v1');
+      if (raw) {
+        var st = JSON.parse(raw);
+        var dayId = st.filterDay, day = (st.days || []).find(function (d) { return d.id === dayId; });
+        ctx.workout = { dayName: day ? day.name : null, week: st.programWeek || 1 };
+      }
+    } catch (e) {}
+    return ctx;
+  }
+
+  function renderCoach(c) {
+    if (!c || !c.verdict) { $('coachBody').innerHTML = '<div class="coach-muted">No plan yet — tap refresh.</div>'; return; }
+    var v = c.verdict, lvl = (v.level === 'green' || v.level === 'red') ? v.level : 'yellow';
+    var html = '<div class="coach-verdict"><span class="coach-dot ' + lvl + '"></span><span class="coach-headline">' + esc(v.headline) + '</span></div>';
+    if (v.reasons && v.reasons.length) html += '<ul class="coach-reasons">' + v.reasons.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
+    if (c.events && c.events.length) {
+      html += '<div class="coach-section-t">Today\'s events</div>';
+      html += c.events.map(function (e) { return '<div class="coach-evt"><div class="coach-evt-title">' + esc(e.title) + '</div><div class="coach-evt-guide">' + esc(e.guidance) + '</div></div>'; }).join('');
+    }
+    if (c.workout && c.workout.note) html += '<div class="coach-workout"><b>Today\'s session:</b> ' + esc(c.workout.note) + '</div>';
+    $('coachBody').innerHTML = html;
+  }
+
+  function showSetup() {
+    $('coachBody').innerHTML = '<div class="coach-setup">AI coach not configured. Add an <code>ANTHROPIC_API_KEY</code> to Vercel env to enable it.</div>';
+  }
+
+  async function load(force) {
+    if (!force) {
+      try { var cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+        if (cached && cached.date === todayKey() && cached.coach) { renderCoach(cached.coach); return; }
+      } catch (e) {}
+    }
+    var t = await token();
+    if (!t) { $('coachBody').innerHTML = '<div class="coach-muted">Sign in to get your daily plan.</div>'; return; }
+    $('coachBody').innerHTML = '<div class="coach-muted">Thinking…</div>';
+    try {
+      var ctx = await gatherContext(t);
+      var r = await fetch('/api/coach', { method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify({ context: ctx }) });
+      var j = await r.json();
+      if (j.configured === false) { showSetup(); return; }
+      if (!r.ok || !j.coach) { $('coachBody').innerHTML = '<div class="coach-muted">Coach unavailable — try refresh.</div>'; return; }
+      renderCoach(j.coach);
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ date: todayKey(), coach: j.coach })); } catch (e) {}
+    } catch (e) {
+      $('coachBody').innerHTML = '<div class="coach-muted">Coach error — try refresh.</div>';
+    }
+  }
+
+  $('coachRefresh').addEventListener('click', function () { load(true); });
+  var tries = 0;
+  (function boot() { if (supa()) { load(false); return; } if (tries++ > 100) { $('coachBody').innerHTML = '<div class="coach-muted">Coach unavailable (offline).</div>'; return; } setTimeout(boot, 100); })();
 })();
 </script>
 
