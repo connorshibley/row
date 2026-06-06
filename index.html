@@ -636,7 +636,7 @@ body::after {
     <div class="day-ring-text">
       <div class="day-ring-status"    id="dayRingStatus">Loading…</div>
       <div class="day-ring-remaining" id="dayRingRemaining">—</div>
-      <div class="day-ring-hours" id="dayRingHours">8:00 AM – 12:00 AM</div>
+      <div class="day-ring-hours" id="dayRingHours">10:30 PM – 7:20 AM</div>
     </div>
   </div>
 
@@ -701,8 +701,8 @@ body::after {
   // Paste your Anthropic key here to enable ✨ Polish. Empty = falls back to plain add.
   const ANTHROPIC_API_KEY = '';
 
-  let WAKE_HOUR  = 8;   // defaults; overridden by WHOOP sleep (applyWhoopSleep)
-  let SLEEP_HOUR = 24;
+  let WAKE_HOUR  = 7 + 20 / 60;   // 7:20 AM — see applyWhoopSleep (settings-overridable)
+  let SLEEP_HOUR = 22 + 30 / 60;  // 10:30 PM
 
   // ---------- storage helpers ----------
   function storeGet(key) {
@@ -971,12 +971,10 @@ body::after {
     remainingEl.textContent = formatRemaining(minsLeft) + ' awake time left';
   }
 
-  // ---------- WHOOP optimal sleep → day ring ----------
-  // Drive WAKE_HOUR / SLEEP_HOUR + the schedule label from your OPTIMAL sleep:
-  //   wake    = your set wake time (whoop_wake_time setting, default 7:00)
-  //   bedtime = wake − (WHOOP sleep-need ÷ efficiency) − 15min
-  // So it's a fixed target to hit your needed sleep, not last night's actual.
-  // Falls back to the 8am–midnight defaults if there's no WHOOP data.
+  // ---------- Sleep schedule → day ring ----------
+  // Fixed optimal schedule: wake 7:20 AM, bedtime 10:30 PM. Overridable via the
+  // localStorage settings `whoop_wake_time` / `whoop_bedtime` (e.g. "07:20",
+  // "22:30") if ever set. Drives WAKE_HOUR / SLEEP_HOUR + the schedule label.
   function hourToClock(h) {
     h = ((h % 24) + 24) % 24;
     let hr = Math.floor(h), mn = Math.round((h - hr) * 60);
@@ -984,33 +982,19 @@ body::after {
     const ap = hr < 12 ? 'AM' : 'PM', hh = hr % 12 || 12;
     return hh + ':' + pad2(mn) + ' ' + ap;
   }
-  function getWakeSetting() {
-    const m = /^(\d{1,2}):(\d{2})/.exec(localStorage.getItem('whoop_wake_time') || '07:00');
-    return m ? (parseInt(m[1], 10) + parseInt(m[2], 10) / 60) : 7;
+  function hmToHours(str, def) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(str || '');
+    return m ? (parseInt(m[1], 10) + parseInt(m[2], 10) / 60) : def;
   }
-  async function applyWhoopSleep() {
-    const s = window.__supa; if (!s) return;
-    try {
-      const r = await s.from('app_state').select('data').eq('key', 'whoop').maybeSingle();
-      const w = r && r.data && r.data.data; const slp = w && w.sleep;
-      if (!slp || slp.needed_hours == null) return;
-      let eff = (slp.efficiency != null ? slp.efficiency : 90) / 100; if (eff <= 0) eff = 0.9;
-      const wakeH = getWakeSetting();
-      const bedH = (((wakeH - (slp.needed_hours / eff) - 0.25) % 24) + 24) % 24;
-      WAKE_HOUR = wakeH; SLEEP_HOUR = bedH;
-      const lbl = document.getElementById('dayRingHours');
-      if (lbl) lbl.textContent = hourToClock(bedH) + ' – ' + hourToClock(wakeH);
-      updateDayRing();
-    } catch (e) {}
+  function applyWhoopSleep() {
+    const wakeH = hmToHours(localStorage.getItem('whoop_wake_time'), 7 + 20 / 60); // 7:20 AM
+    const bedH  = hmToHours(localStorage.getItem('whoop_bedtime'),   22 + 30 / 60); // 10:30 PM
+    WAKE_HOUR = wakeH; SLEEP_HOUR = bedH;
+    const lbl = document.getElementById('dayRingHours');
+    if (lbl) lbl.textContent = hourToClock(bedH) + ' – ' + hourToClock(wakeH);
+    updateDayRing();
   }
-  (function bootWhoopSleep() {
-    let tries = 0;
-    (function poll() {
-      if (window.__supa) { applyWhoopSleep(); return; }
-      if (tries++ > 100) return;
-      setTimeout(poll, 100);
-    })();
-  })();
+  applyWhoopSleep();
 
   // ---------- Row building ----------
   function makeInlineEdit(textEl, goals, idx, key, reload) {
