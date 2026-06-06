@@ -971,33 +971,35 @@ body::after {
     remainingEl.textContent = formatRemaining(minsLeft) + ' awake time left';
   }
 
-  // ---------- WHOOP sleep → day ring ----------
-  // Drive WAKE_HOUR / SLEEP_HOUR + the schedule label from the latest WHOOP
-  // sleep (app_state.whoop): wake = sleep end, bedtime = sleep start. Falls back
-  // to deriving bedtime from in-bed duration, then to the 8am–midnight defaults.
-  function whoopFmtClock(d) {
-    const h = d.getHours(), m = d.getMinutes(), ap = h < 12 ? 'AM' : 'PM', hh = h % 12 || 12;
-    return hh + ':' + pad2(m) + ' ' + ap;
+  // ---------- WHOOP optimal sleep → day ring ----------
+  // Drive WAKE_HOUR / SLEEP_HOUR + the schedule label from your OPTIMAL sleep:
+  //   wake    = your set wake time (whoop_wake_time setting, default 7:00)
+  //   bedtime = wake − (WHOOP sleep-need ÷ efficiency) − 15min
+  // So it's a fixed target to hit your needed sleep, not last night's actual.
+  // Falls back to the 8am–midnight defaults if there's no WHOOP data.
+  function hourToClock(h) {
+    h = ((h % 24) + 24) % 24;
+    let hr = Math.floor(h), mn = Math.round((h - hr) * 60);
+    if (mn === 60) { mn = 0; hr = (hr + 1) % 24; }
+    const ap = hr < 12 ? 'AM' : 'PM', hh = hr % 12 || 12;
+    return hh + ':' + pad2(mn) + ' ' + ap;
+  }
+  function getWakeSetting() {
+    const m = /^(\d{1,2}):(\d{2})/.exec(localStorage.getItem('whoop_wake_time') || '07:00');
+    return m ? (parseInt(m[1], 10) + parseInt(m[2], 10) / 60) : 7;
   }
   async function applyWhoopSleep() {
     const s = window.__supa; if (!s) return;
     try {
       const r = await s.from('app_state').select('data').eq('key', 'whoop').maybeSingle();
-      const w = r && r.data && r.data.data; const slp = w && w.sleep; if (!slp) return;
-      let startISO = slp.start || null;
-      const endISO = slp.end || slp.at || null;
-      if (!startISO && endISO && slp.stages && slp.stages.in_bed_ms) {
-        startISO = new Date(new Date(endISO).getTime() - slp.stages.in_bed_ms).toISOString();
-      }
-      if (!startISO || !endISO) return;
-      const bed = new Date(startISO), wake = new Date(endISO);
-      if (isNaN(bed.getTime()) || isNaN(wake.getTime())) return;
-      let bedH = bed.getHours() + bed.getMinutes() / 60;
-      const wakeH = wake.getHours() + wake.getMinutes() / 60;
-      if (bedH < 12) bedH += 24; // bedtime past midnight
+      const w = r && r.data && r.data.data; const slp = w && w.sleep;
+      if (!slp || slp.needed_hours == null) return;
+      let eff = (slp.efficiency != null ? slp.efficiency : 90) / 100; if (eff <= 0) eff = 0.9;
+      const wakeH = getWakeSetting();
+      const bedH = (((wakeH - (slp.needed_hours / eff) - 0.25) % 24) + 24) % 24;
       WAKE_HOUR = wakeH; SLEEP_HOUR = bedH;
       const lbl = document.getElementById('dayRingHours');
-      if (lbl) lbl.textContent = whoopFmtClock(bed) + ' – ' + whoopFmtClock(wake);
+      if (lbl) lbl.textContent = hourToClock(bedH) + ' – ' + hourToClock(wakeH);
       updateDayRing();
     } catch (e) {}
   }
