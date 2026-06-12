@@ -1354,11 +1354,22 @@ body::after {
   );
 
   // ---------- Boot ----------
-  rollover();
-  processStreak();
-  loadToday();
-  loadTomorrow();
-  renderStreak();
+  // Defer the goals rollover + first render until cloud-sync has pulled remote
+  // state, so rollover migrates the TRUE cloud goals — not a stale local snapshot
+  // the cloud is about to overwrite, which was silently dropping newly-added
+  // goals. Fallback timer covers standalone / not-signed-in / cloud-sync-absent.
+  let _goalsBooted = false;
+  function bootGoals() {
+    if (_goalsBooted) return;
+    _goalsBooted = true;
+    rollover();
+    processStreak();
+    loadToday();
+    loadTomorrow();
+    renderStreak();
+  }
+  window.addEventListener('cloudsync:ready', bootGoals);
+  setTimeout(bootGoals, 1800);
   updateDayRing();
   setInterval(updateDayRing, 60 * 1000);
   startTicker();

@@ -207,6 +207,17 @@
   window.addEventListener('pagehide', flushPushOnUnload);
   window.addEventListener('beforeunload', flushPushOnUnload);
 
+  // Fire a one-time 'cloudsync:ready' event once the initial pull has settled
+  // (or immediately if there's no session). Lets a page defer boot logic that
+  // must run AFTER remote state is loaded (e.g. index.html's goals rollover,
+  // which must not migrate a stale local snapshot the cloud is about to apply).
+  let _readySignaled = false;
+  function signalReady() {
+    if (_readySignaled) return;
+    _readySignaled = true;
+    try { window.dispatchEvent(new CustomEvent('cloudsync:ready')); } catch (e) {}
+  }
+
   // Initial sync: connect, pull current state, subscribe to realtime.
   (async function init() {
     // Reuse auth.js's client so we share its session; fall back to our own.
@@ -215,7 +226,7 @@
     // Require a signed-in user — auth.js shows the login gate otherwise.
     let session = null;
     try { session = (await supa.auth.getSession()).data.session; } catch (e) {}
-    if (!session) return;
+    if (!session) { signalReady(); return; }
     userId = session.user.id;
     accessToken = session.access_token;
     try { supa.realtime.setAuth(accessToken); } catch (e) {}
@@ -233,6 +244,9 @@
         schedulePush(); // first device to sync — seed the cloud
       }
     } catch (_) {}
+
+    // Remote pull has settled — let deferred page boot logic run now.
+    signalReady();
 
     supa.channel('app_state_' + APP_KEY)
       .on('postgres_changes', {
